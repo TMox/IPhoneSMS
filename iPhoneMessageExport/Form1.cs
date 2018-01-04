@@ -41,7 +41,8 @@ namespace iPhoneMessageExport
             foreach (DirectoryInfo dir in dirBackups)
             {
                 // check that it contains the messages file (3d0d7e5fb2ce288813306e4d4636395e047a3d28)
-                files = dir.GetFiles("3d0d7e5fb2ce288813306e4d4636395e047a3d28", SearchOption.TopDirectoryOnly);
+                //tmox: file not in top folder, so descend
+                files = dir.GetFiles("3d0d7e5fb2ce288813306e4d4636395e047a3d28", SearchOption.AllDirectories);
                 if (files != null)
                 {
                     foreach (System.IO.FileInfo fi in files)
