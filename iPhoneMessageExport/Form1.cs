@@ -20,6 +20,8 @@ namespace iPhoneMessageExport
         bool _formInitialized = false;
         iPhoneBackup _backup;
         List<iPhoneBackup.MessageGroup> _chats;
+        List<iPhoneBackup.Person> _people;
+        Dictionary<string, string> _contacts;
         DataTable dtMessageFiles;
         string dbFile = null;
         string dbFileDate = null;
@@ -154,7 +156,7 @@ namespace iPhoneMessageExport
             List<iPhoneBackup.Message> messages = _backup.GetMessages(group.ChatId, group.ToString());
             TraceInformation("messages: {0} ms", sw.ElapsedMilliseconds);
 
-            lbPreview.Items.Add("Messages from " + group);
+            lbPreview.Items.Add("Group " + GroupNames(group.Ids));
 
             // fields: date, service, direction, id, text, filereflist
             List<string> list = new List<string>(messages.Count);
@@ -166,6 +168,14 @@ namespace iPhoneMessageExport
                     list.Add("> " + m.Text);
             }
             lbPreview.Items.AddRange(list.ToArray());
+        }
+
+        string GroupNames(List<string> ids)
+        {
+            List<string> names = new List<string>(ids.Count);
+            string s;
+            ids.ForEach((i) => { if (!_contacts.TryGetValue(i, out s)) names.Add(i); else names.Add(s); });
+            return string.Join(", ", names);
         }
 
 
@@ -343,9 +353,13 @@ namespace iPhoneMessageExport
 
         private void GetChatGroups()
         {
-            List<iPhoneBackup.Person> people = _backup.GetAddressList();
-            //List<iPhoneBackup.Message> messages = _backup.GetAllMessages();
             Stopwatch sw = Stopwatch.StartNew();
+            _people = _backup.GetAddressList();
+            _contacts = new Dictionary<string, string>();
+            _people.ForEach((p) => p.Contacts.ForEach((c) => _contacts[c.value] = p.FirstName));
+            TraceInformation("GetAddressList {0} ms", sw.ElapsedMilliseconds);
+            //List<iPhoneBackup.Message> messages = _backup.GetAllMessages();
+            sw.Restart();
             _chats = _backup.GetChats();
 
             FillMessageGroupsListbox(_chats);

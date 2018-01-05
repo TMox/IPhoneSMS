@@ -4,6 +4,7 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using static System.Diagnostics.Trace;
 
@@ -99,6 +100,34 @@ namespace iPhoneSMS
             string path = Path.Combine(DatabaseRoot, file.Substring(0, 2));
             file = Path.Combine(path, file);
             Sqlitedb backup = new Sqlitedb(file);
+
+            //// getting everything at once in a complicated query is barely quicker than 
+            //// getting each table separately an splicing the data together, so I elect to do it the easier way
+            //// the time difference, in my situation, is 200 ms for this query (unfinished) and 260 ms for getting all the talbes
+            //// since the value labels don't have an index, just a row number, we can't query that directly
+            //// instead, we have to generate a lookup table and use that outside of the query
+            //string sql = @"Select trim(person.First) as First, trim(person.Last) as Last, 
+            //                trim(person.Middle) as Middle, trim(person.Organization) as Organization, 
+            //                person.Birthday, trim(person.JobTitle) as JobTitle, trim(person.Note) as Note,
+            //                (Select Group_Concat(
+            //                    Case value.property 
+            //                        When 3 Then 'phone'
+            //                        When 4 Then 'email'
+            //                        When 5 Then 'address'
+            //                        When 22 Then 'homepage'
+            //                    End || ':' || value.label || ':' || value.value
+            //                )
+            //                From ABMultiValue value
+            //                Where value.record_id = person.ROWID
+            //                Group By record_id) as type
+            //                From ABPerson person;";
+            //DataTable dt = backup.Query(sql);
+            //Sqlitedb.Table labels = backup.GetTableData("ABMultiValueLabel");
+            //Sqlitedb.Table adrLbls = backup.GetTableData("ABMultiValueEntryKey");
+            //List<string> lText = (from l in labels.Items select Strip(l["value"] as string)).ToList();
+            //List<string> lAddress = (from l in adrLbls.Items select l["value"] as string).ToList();
+            //return new List<Person>();
+
             Sqlitedb.Table people = backup.GetTableData("ABPerson");
             Sqlitedb.Table values = backup.GetTableData("ABMultiValue");
             Sqlitedb.Table labels = backup.GetTableData("ABMultiValueLabel");
@@ -137,7 +166,7 @@ namespace iPhoneSMS
                 if (!string.IsNullOrEmpty(p.Organization))
                     p.Organization = p.Organization.Trim();
                 if (!((tmp = item["Birthday"]) is DBNull))
-                     p.Birthday = new DateTime(2001, 1, 1, 0, 0, 0).AddSeconds((long)Convert.ToDouble(tmp));
+                    p.Birthday = new DateTime(2001, 1, 1, 0, 0, 0).AddSeconds((long)Convert.ToDouble(tmp));
                 p.JobTitle = item["JobTitle"] as string;
                 if (!string.IsNullOrEmpty(p.JobTitle))
                     p.JobTitle = p.JobTitle.Trim();
@@ -147,7 +176,7 @@ namespace iPhoneSMS
                 foreach (var val in values.Items.Where(q => (long)q["record_id"] == id))
                 {
                     tmp = (long)val["property"];
-                    switch((long)tmp)
+                    switch ((long)tmp)
                     {
                         case HOMEPAGE:
                             type = "homepage";
@@ -171,11 +200,21 @@ namespace iPhoneSMS
                         tmp = string.Join(";", from v in addresses.Items where (long)v["parent_id"] == (long)val["UID"] select string.Format("{0}:{1}", lAddress[((int)(long)v["key"]) - 1], v["value"]));
                     else
                         tmp = (tmp as string).Trim();
-                    p.Contacts.Add((type, (long)i == -1 ? "" : lText[i], tmp as string));
+                    p.Contacts.Add((type, (long)i == -1 ? "" : lText[i], handle(type, tmp as string)));
                 }
                 pList.Add(p);
-             }
+            }
             return pList;
+        }
+
+        Regex _handleReplace = new Regex(@"[ ()-/]");
+        string handle(string type, string value)
+        {
+            if (type != "phone")
+                return value;
+            // convert phone number into a message "handle" which is +lllll
+            var s = "+1" + _handleReplace.Replace(value, "");
+            return s;
         }
 
         string Strip(string s)
