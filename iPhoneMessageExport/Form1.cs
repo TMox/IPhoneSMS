@@ -156,7 +156,7 @@ namespace iPhoneMessageExport
             List<iPhoneBackup.Message> messages = _backup.GetMessages(group.ChatId, group.ToString());
             TraceInformation("messages: {0} ms", sw.ElapsedMilliseconds);
 
-            lbPreview.Items.Add("Group " + GroupNames(group.Ids));
+            lbPreview.Items.Add("Group: " + GroupNames(group.Ids));
 
             // fields: date, service, direction, id, text, filereflist
             List<string> list = new List<string>(messages.Count);
