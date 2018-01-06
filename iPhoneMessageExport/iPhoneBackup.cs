@@ -34,6 +34,10 @@ namespace iPhoneSMS
             {
                 return string.Join(",", from c in Contacts select string.Format("{0}:{1}:{2}", c.type, c.label, c.value));
             }
+            public override string ToString()
+            {
+                return string.IsNullOrEmpty(FirstName) ? LastName : FirstName;
+            }
         }
 
         public class Message
@@ -54,10 +58,23 @@ namespace iPhoneSMS
             public List<string> Ids { get; set; } = new List<string>();
             public long ChatId { get; set; }
             string _join = null;
+            public static Func<List<string>, string> ToStringFilter { get; set; } = null;
+            public string Display
+            {
+                get
+                {
+                    return ToString();
+                }
+            }
             public override string ToString()
             {
                 if (_join == null)
-                    _join = string.Join(",", Ids);
+                {
+                    if (ToStringFilter == null)
+                        _join = string.Join(", ", Ids);
+                    else
+                        _join = ToStringFilter(Ids);
+                }
                 return _join;
             }
         }
@@ -207,13 +224,13 @@ namespace iPhoneSMS
             return pList;
         }
 
-        Regex _handleReplace = new Regex(@"[ ()-/]");
+        Regex _handleReplace = new Regex(@"[\s()-]");
         string handle(string type, string value)
         {
             if (type != "phone")
                 return value;
             // convert phone number into a message "handle" which is +lllll
-            var s = "+1" + _handleReplace.Replace(value, "");
+            var s =  (value.StartsWith("+") ? "" : "+1") + _handleReplace.Replace(value, "");
             return s;
         }
 
@@ -233,10 +250,23 @@ namespace iPhoneSMS
             string path = Path.Combine(DatabaseRoot, file.Substring(0, 2));
             file = Path.Combine(path, file);
             Sqlitedb backup = new Sqlitedb(file);
-            string sql = "SELECT h.id,chj.chat_id " +
-                            "From chat_handle_join chj " +
-                            "Inner Join handle h on h.ROWID = chj.handle_id " +
-                            "Order By chj.chat_id,h.id;";
+            string sql = @"
+SELECT h.id,chj.chat_id,
+ Case When cmj.message_date > 1000000000 
+  Then cmj.message_date / 1000000000 
+  Else cmj.message_date 
+ End as date
+From chat_handle_join chj
+Inner Join handle h on h.ROWID = chj.handle_id
+Inner Join chat_message_join cmj on cmj.chat_id = chj.chat_id
+Group By chj.chat_id,h.id
+Order By date Desc;";
+            //string sql = @"SELECT h.id,chj.chat_id,cmj.message_date as date
+            //                From chat_handle_join chj
+            //                Inner Join handle h on h.ROWID = chj.handle_id
+            //                Inner Join chat_message_join cmj on cmj.chat_id = chj.chat_id
+            //                Group By chj.chat_id
+            //                Order By date Desc;"; 
             DataRowCollection rows = backup.Query(sql).Rows;
             List<MessageGroup> groups = new List<MessageGroup>();
             MessageGroup group = null;
@@ -253,7 +283,7 @@ namespace iPhoneSMS
             }
             //groups.Sort((a, b) => a.Ids[0].CompareTo(b.Ids[0]));
             //bugbug--this isn't needed, I'm just using it so the output text file will be in orthagraphical order (comparing to old output)
-            groups.Sort((a, b) => a.ToString().CompareTo(b.ToString()));
+            //groups.Sort((a, b) => a.ToString().CompareTo(b.ToString()));
             return groups;
         }
 

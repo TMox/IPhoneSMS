@@ -17,7 +17,7 @@ namespace iPhoneMessageExport
     public partial class Form1 : Form
     {
         /* GLOBAL variables */
-        bool _formInitialized = false;
+        //bool _formInitialized = false;
         iPhoneBackup _backup;
         List<iPhoneBackup.MessageGroup> _chats;
         List<iPhoneBackup.Person> _people;
@@ -121,7 +121,7 @@ namespace iPhoneMessageExport
                     if (row["chatgroup"].ToString().Trim() != "")
                     {
                         List<string> ids = (row["chatgroup"] as string).Split(",".ToCharArray()).ToList();
-                        ids.Sort();
+                        //ids.Sort();
                         // add and prettify US 11-digit phone numbers
                         groups.Add(new iPhoneBackup.MessageGroup() { ChatId = (long)row["chat_id"], Ids = ids });
                         //dt.Rows.Add(row["chatgroup"] as string, Regex.Replace(row["chatgroup"].ToString(), @"\+1(\d{3})(\d{3})(\d{4})\b", "($1)$2-$3"));
@@ -134,12 +134,12 @@ namespace iPhoneMessageExport
             return groups;
         }
 
-        string Reorder(string s)
-        {
-            List<string> t = s.Split(",".ToCharArray()).ToList();
-            t.Sort();
-            return string.Join(",", t);
-        }
+        //string Reorder(string s)
+        //{
+        //    List<string> t = s.Split(",".ToCharArray()).ToList();
+        //    t.Sort();
+        //    return string.Join(", ", t);
+        //}
 
         /// <summary>
         /// 
@@ -156,7 +156,7 @@ namespace iPhoneMessageExport
             List<iPhoneBackup.Message> messages = _backup.GetMessages(group.ChatId, group.ToString());
             TraceInformation("messages: {0} ms", sw.ElapsedMilliseconds);
 
-            lbPreview.Items.Add("Group: " + GroupNames(group.Ids));
+            lbPreview.Items.Add(string.Format("Group {0}: {1}", group.ChatId, group.ToString()));
 
             // fields: date, service, direction, id, text, filereflist
             List<string> list = new List<string>(messages.Count);
@@ -172,7 +172,7 @@ namespace iPhoneMessageExport
 
         string GroupNames(List<string> ids)
         {
-            List<string> names = new List<string>(ids.Count);
+            List < string > names = new List<string>(ids.Count);
             string s;
             ids.ForEach((i) => { if (!_contacts.TryGetValue(i, out s)) names.Add(i); else names.Add(s); });
             return string.Join(", ", names);
@@ -275,7 +275,7 @@ namespace iPhoneMessageExport
 
             // regex replacements
             // REGEX: change phone number format (+12257490000 => (225)749-0000)
-            htmlOutput = Regex.Replace(htmlOutput, @"\+1(\d{3})(\d{3})(\d{4})\b", "($1)$2-$3");
+            htmlOutput = Regex.Replace(htmlOutput, @"\+1(\d{3})(\d{3})(\d{4})\b", "($1) $2-$3");
             // REGEX: change date format (2015-01-01 00:00 => 01/01/2015 12:00am)
             htmlOutput = Regex.Replace(htmlOutput, @"(\d{4})-(\d{2})-(\d{2})\s(\d{2}):(\d{2}):(\d{2})", delegate (Match match)
             {
@@ -335,6 +335,8 @@ namespace iPhoneMessageExport
             }
             // disable export button until listbox is populated
             btnExport.Enabled = false;
+
+            iPhoneBackup.MessageGroup.ToStringFilter = GroupNames;
         }
 
 
@@ -364,27 +366,28 @@ namespace iPhoneMessageExport
 
             FillMessageGroupsListbox(_chats);
 
-            //TraceInformation("{1} chats: {0} ms", sw.ElapsedMilliseconds, _chats.Count);
+            TraceInformation("{1} chats: {0} ms", sw.ElapsedMilliseconds, _chats.Count);
             //File.WriteAllText(@"C:\Work\git\Tools\IPhoneSMS\b.txt", string.Join("\r\n", from c in _chats select /*c.ChatId + ": " + */ c.ToString()));
         }
 
         void FillMessageGroupsListbox(List<iPhoneBackup.MessageGroup> groups)
         { 
-            DataTable dt = new DataTable();
-            dt.Columns.Add("Value", typeof(long));
-            dt.Columns.Add("Display", typeof(string));
-            dt.DefaultView.Sort = "Display ASC";
-            string s;
-            foreach (var item in groups)
-            {
-                s = item.ToString();
-                dt.Rows.Add(item.ChatId, Regex.Replace(s, @"\+1(\d{3})(\d{3})(\d{4})\b", "($1)$2-$3")); ;
-            }
-            DataView dvMessageGroups = dt.DefaultView;
-            lbMessageGroup.DataSource = new BindingSource(dvMessageGroups, null);
+            //DataTable dt = new DataTable();
+            //dt.Columns.Add("Value", typeof(long));
+            //dt.Columns.Add("Display", typeof(string));
+            //dt.Columns.Add("Group", typeof(string));
+            //dt.DefaultView.Sort = "Display ASC";
+            //string s;
+            //foreach (var item in groups)
+            //{
+            //    s = item.ToString();
+            //    dt.Rows.Add(item.ChatId, Regex.Replace(s, @"\+1(\d{3})(\d{3})(\d{4})\b", "($1) $2-$3"), s); ;
+            //}
+            //DataView dvMessageGroups = dt.DefaultView;
+            lbMessageGroup.DataSource = new BindingSource(groups, null);
             lbMessageGroup.DisplayMember = "Display";
-            lbMessageGroup.ValueMember = "Value";
-            lblGroupCount.Text = dvMessageGroups.Count.ToString();
+            lbMessageGroup.ValueMember = "ChatId";
+            lblGroupCount.Text = groups.Count.ToString();
             lblGroupCount.Left = lbMessageGroup.Right - lblGroupCount.Width + 1;
         }
 
@@ -410,10 +413,14 @@ namespace iPhoneMessageExport
         private void lbMessageGroup_SelectedIndexChanged(object sender, EventArgs e)
         {
             btnExport.Enabled = true;
-            if (!_formInitialized || lbMessageGroup.SelectedItem == null)
+            if (lbMessageGroup.SelectedItem == null)
                 return;
-            //messageGroup = lbMessageGroup.SelectedValue.ToString();
-            PreviewGroup(_chats.Find(q => q.ChatId == (long)lbMessageGroup.SelectedValue));
+            // for some reason, sometimes the selectedvalue is the selecteditem; if this is the case, we have to get the value from the item
+            if (lbMessageGroup.SelectedValue is iPhoneBackup.MessageGroup)
+                //messageGroup = lbMessageGroup.SelectedValue.ToString();
+                PreviewGroup(_chats.Find(q => q.ChatId == (lbMessageGroup.SelectedValue as iPhoneBackup.MessageGroup).ChatId));
+            else
+                PreviewGroup(_chats.Find(q => q.ChatId == (long)lbMessageGroup.SelectedValue));
         }
 
         private void btnExport_Click(object sender, EventArgs e)
@@ -439,7 +446,7 @@ namespace iPhoneMessageExport
 
             // Export messages from MessageGroup into HTML file
             //messageGroup = ;
-            backgroundWorker1.RunWorkerAsync(lbMessageGroup.SelectedValue.ToString());
+            backgroundWorker1.RunWorkerAsync((lbMessageGroup.SelectedItem as DataRowView)[2] as string);
             //Thread exportThread = new Thread(new ThreadStart(exportHTMLForMessageGroup));
             //exportThread.Start();
 
@@ -452,7 +459,7 @@ namespace iPhoneMessageExport
 
         private void backgroundWorker1_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
-            MessageBox.Show("HTML Export completed!");
+            //MessageBox.Show("HTML Export completed!");
 
             // re-enable interface after export completes
             comboBackups.Enabled = true;
@@ -473,16 +480,16 @@ namespace iPhoneMessageExport
             if (comboBackups.Items.Count == 1)
             {
                 // save selected dbFile for later use
-                dbFileDir = comboBackups.SelectedValue.ToString();
+                dbFileDir = comboBackups.SelectedValue as string;
                 dbFileDate = comboBackups.GetItemText(comboBackups.SelectedItem);
                 dbFile = Path.Combine(dbFileDir, "3d\\3d0d7e5fb2ce288813306e4d4636395e047a3d28");
                 _backup = new iPhoneBackup() { FileDate = dbFileDate, DatabaseFolder = Path.GetFileName(dbFileDir), BackupRoot = Path.GetDirectoryName(dbFileDir) };
 
                 GetChatGroups();
                 //OpenBackup();
-                _formInitialized = true;
-                // force the indexchanged to occur prior to this SelectedValue wasn't set correctly
-                lbMessageGroup_SelectedIndexChanged(null, null);
+                //_formInitialized = true;
+                //// force the indexchanged to occur prior to this SelectedValue wasn't set correctly
+                //lbMessageGroup_SelectedIndexChanged(null, null);
                 lbMessageGroup.Select();
             }
         }
