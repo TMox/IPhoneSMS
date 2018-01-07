@@ -228,6 +228,7 @@ namespace iPhoneMessageExport
                 sb.AppendLine("<DIV id=\"messages\">\n");
                 // fields: date, service, direction, id, text, filereflist
                 int i = 0;
+                string mFile;
                 foreach (DataRow row in set.Tables[0].Rows)
                 {
                     string content = (string)row["text"];
@@ -249,10 +250,32 @@ namespace iPhoneMessageExport
                                 case ".jpeg":
                                 case ".jpg":
                                 case ".png":
-                                    replace = "<img src=\"" + dbFileDir + @"\" + MiscUtil.getSHAHash(mediaFile) + "\"><!-- " + mediaFile + " //-->";
+                                    mFile = MiscUtil.getSHAHash(mediaFile);
+                                    mFile = mFile.Substring(0, 2) + "\\" + mFile;
+                                    replace = "<img src=\"" + Path.Combine(dbFileDir, mFile) + "\"><!-- " + mediaFile + " //-->";
                                     break;
-                                //case ".mov":
-                                //case ".vcf":
+                                case ".mov":
+                                    mFile = MiscUtil.getSHAHash(mediaFile);
+                                    mFile = mFile.Substring(0, 2) + "\\" + mFile;
+                                    replace = string.Format("<video controls='controls' width='300' name='video' src='{0}'></video>", Path.Combine(dbFileDir, mFile));
+                                    break;
+                                case ".vcf":
+                                    mFile = MiscUtil.getSHAHash(mediaFile);
+                                    mFile = mFile.Substring(0, 2) + "\\" + mFile;
+                                    mFile = Path.Combine(dbFileDir, mFile);
+                                    string contents = File.ReadAllText(mFile);
+                                    int j = contents.IndexOf("FN:");
+                                    int k = contents.IndexOf("\r", j + 3);
+                                    contents = contents.Substring(j + 3, k - j - 3);
+                                    replace = "Contact: " + contents;
+                                    break;
+                                case ".pluginpayloadattachment":
+                                    mFile = MiscUtil.getSHAHash(mediaFile);
+                                    mFile = mFile.Substring(0, 2) + "\\" + mFile;
+                                    mFile = Path.Combine(dbFileDir, mFile);
+                                    replace = string.Format("<p>Link: {0}</p>", mFile);
+                                    replace = content;
+                                    break;
                                 default:
                                     replace = "";
                                     break;
