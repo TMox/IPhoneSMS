@@ -182,9 +182,10 @@ namespace iPhoneMessageExport
         /// <summary>
         /// Export all messages for MessageGroup in backup file into HTML file. (THREAD)
         /// </summary>
-        private void exportHTMLForMessageGroup(string group)
+        private void exportHTMLForMessageGroup(iPhoneBackup.MessageGroup grp)
         {
-            string htmlOutput = "";
+            StringBuilder sb = new StringBuilder();
+            string group = string.Join(",", grp.Ids);
             bool isGroupMessage = (group.Contains(",")) ? true : false;
 
             // query database
@@ -201,12 +202,10 @@ namespace iPhoneMessageExport
                     "INNER JOIN handle h on h.ROWID = ch.handle_id WHERE ch.chat_id = cm.chat_id GROUP BY ch.chat_id) as chatgroup " +
                     "FROM chat_message_join cm INNER JOIN message m ON cm.message_id = m.ROWID INNER JOIN handle h ON m.handle_id = h.ROWID " +
                     "WHERE chatgroup = \"" + group + "\" LIMIT 1";
-                SQLiteCommand command = new SQLiteCommand(sql, m_dbConnection);
-                SQLiteDataReader row = command.ExecuteReader();
-                if (row.Read())
-                {
-                    totalMessages = int.Parse(row["count"].ToString());
-                }
+                SQLiteDataAdapter adpt = new SQLiteDataAdapter(sql, m_dbConnection);
+                DataSet set = new DataSet();
+                adpt.Fill(set);
+                totalMessages = int.Parse(set.Tables[0].Rows[0]["count"].ToString());
 
                 // select the data
                 sql = "SELECT cm.chat_id, (SELECT GROUP_CONCAT(h.id) FROM chat_handle_join ch INNER JOIN handle h on h.ROWID = ch.handle_id " +
@@ -217,21 +216,25 @@ namespace iPhoneMessageExport
                     "JOIN attachment a ON ma.attachment_id = a.ROWID WHERE ma.message_id = m.ROWID GROUP BY ma.message_id) as filereflist " +
                     "FROM chat_message_join cm INNER JOIN message m ON cm.message_id = m.ROWID INNER JOIN handle h ON m.handle_id = h.ROWID " +
                     "WHERE chatgroup = \"" + group + "\" ORDER BY date";
-                command = new SQLiteCommand(sql, m_dbConnection);
-                row = command.ExecuteReader();
-                htmlOutput += iPhoneSMS.Properties.Resources.HTMLHeaders; // add html headers
-                htmlOutput += "<BODY>\n";
-                htmlOutput += "<H1>Messages from " + group + "</H1>\n";
-                htmlOutput += "<H2>as of " + dbFileDate + "</H2>\n";
-                htmlOutput += "<DIV id=\"messages\">\n";
+                set.Dispose();
+                adpt.SelectCommand.CommandText = sql;
+                set = new DataSet();
+                adpt.Fill(set);
+                Stopwatch sw = Stopwatch.StartNew();
+                sb.AppendLine(iPhoneSMS.Properties.Resources.HTMLHeaders); // add html headers
+                sb.AppendLine("<BODY>\n");
+                sb.AppendLine("<H1>Messages from " + grp.ToString() + "</H1>\n");
+                sb.AppendLine("<H2>as of " + dbFileDate + "</H2>\n");
+                sb.AppendLine("<DIV id=\"messages\">\n");
                 // fields: date, service, direction, id, text, filereflist
                 int i = 0;
-                while (row.Read())
+                foreach (DataRow row in set.Tables[0].Rows)
                 {
                     string content = (string)row["text"];
-                    htmlOutput += "<DIV class=\"message message-" + row["direction"] + "-" + row["service"] + "\">";
-                    htmlOutput += "<DIV class=\"timestamp-placeholder\"></DIV><DIV class=\"timestamp\">" + row["date"] + "</DIV>";
-                    if (isGroupMessage && row["direction"].ToString() == "RCVD") htmlOutput += "<DIV class=\"sender\">" + row["id"] + "</DIV>";
+                    sb.AppendLine("<DIV class=\"message message-" + row["direction"] + "-" + row["service"] + "\">");
+                    sb.AppendLine("<DIV class=\"timestamp-placeholder\"></DIV><DIV class=\"timestamp\">" + row["date"] + "</DIV>");
+                    if (isGroupMessage && row["direction"].ToString() == "RCVD")
+                        sb.AppendLine("<DIV class=\"sender\">" + row["id"] + "</DIV>");
                     // replace image placeholders (ï¿¼) with image files 
                     if (row["filereflist"].ToString().Length > 0)
                     {
@@ -259,22 +262,26 @@ namespace iPhoneMessageExport
                             content = rgx.Replace(content, replace, 1);
                         }
                     }
-                    htmlOutput += "<DIV class=\"content\">" + content + "</DIV>\n";
-                    htmlOutput += "</DIV>\n";
+                    sb.AppendLine("<DIV class=\"content\">" + content + "</DIV>\n");
+                    sb.AppendLine("</DIV>\n");
 
                     i++;
                     backgroundWorker1.ReportProgress(i * 100 / totalMessages);
                 }
-                htmlOutput += "</DIV>\n";
-                htmlOutput += "</BODY>\n";
-                htmlOutput += "</HTML>\n";
+                sb.AppendLine("</DIV>\n");
+                sb.AppendLine("</BODY>\n");
+                sb.AppendLine("</HTML>\n");
 
-                row.Close();
+                TraceInformation("Creating html: {0} ms", sw.ElapsedMilliseconds);
+                //4895
+                set.Dispose();
+                adpt.Dispose();
                 m_dbConnection.Close();
             }
 
             // regex replacements
             // REGEX: change phone number format (+12257490000 => (225)749-0000)
+            string htmlOutput = sb.ToString();
             htmlOutput = Regex.Replace(htmlOutput, @"\+1(\d{3})(\d{3})(\d{4})\b", "($1) $2-$3");
             // REGEX: change date format (2015-01-01 00:00 => 01/01/2015 12:00am)
             htmlOutput = Regex.Replace(htmlOutput, @"(\d{4})-(\d{2})-(\d{2})\s(\d{2}):(\d{2}):(\d{2})", delegate (Match match)
@@ -446,7 +453,7 @@ namespace iPhoneMessageExport
 
             // Export messages from MessageGroup into HTML file
             //messageGroup = ;
-            backgroundWorker1.RunWorkerAsync((lbMessageGroup.SelectedItem as DataRowView)[2] as string);
+            backgroundWorker1.RunWorkerAsync(lbMessageGroup.SelectedItem as iPhoneBackup.MessageGroup);
             //Thread exportThread = new Thread(new ThreadStart(exportHTMLForMessageGroup));
             //exportThread.Start();
 
@@ -454,7 +461,7 @@ namespace iPhoneMessageExport
 
         private void backgroundWorker1_DoWork(object sender, DoWorkEventArgs e)
         {
-            exportHTMLForMessageGroup(e.Argument as string);
+            exportHTMLForMessageGroup(e.Argument as iPhoneBackup.MessageGroup);
         }
 
         private void backgroundWorker1_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
