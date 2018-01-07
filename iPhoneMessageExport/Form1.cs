@@ -64,75 +64,75 @@ namespace iPhoneMessageExport
             return dt;
         }
 
-        /// <summary>
-        /// Returns DataTable of MessageGroups from iPhone backup file.
-        /// </summary>
-        /// <param name="dbFile"></param>
-        /// <returns></returns>
-        private List<iPhoneBackup.MessageGroup> getMessageGroupsFromFile(string dbFile)
-        {
-            //DataTable dt = new DataTable();
-            //dt.Columns.Add("Value", typeof(string));
-            //dt.Columns.Add("Display", typeof(string));
-            //dt.DefaultView.Sort = "Value ASC";
+        ///// <summary>
+        ///// Returns DataTable of MessageGroups from iPhone backup file.
+        ///// </summary>
+        ///// <param name="dbFile"></param>
+        ///// <returns></returns>
+        //private List<iPhoneBackup.MessageGroup> getMessageGroupsFromFile(string dbFile)
+        //{
+        //    //DataTable dt = new DataTable();
+        //    //dt.Columns.Add("Value", typeof(string));
+        //    //dt.Columns.Add("Display", typeof(string));
+        //    //dt.DefaultView.Sort = "Value ASC";
 
-            List<iPhoneBackup.MessageGroup> groups = new List<iPhoneBackup.MessageGroup>();
-            if (dbFile != null)
-            {
-                // open SQLite data file
-                Stopwatch sw = Stopwatch.StartNew();
-                SQLiteConnection m_dbConnection;
-                m_dbConnection = new SQLiteConnection("Data Source=" + dbFile + ";Version=3;Read Only=True;FailIfMissing=True;");
-                m_dbConnection.Open();
+        //    List<iPhoneBackup.MessageGroup> groups = new List<iPhoneBackup.MessageGroup>();
+        //    if (dbFile != null)
+        //    {
+        //        // open SQLite data file
+        //        Stopwatch sw = Stopwatch.StartNew();
+        //        SQLiteConnection m_dbConnection;
+        //        m_dbConnection = new SQLiteConnection("Data Source=" + dbFile + ";Version=3;Read Only=True;FailIfMissing=True;");
+        //        m_dbConnection.Open();
 
-                // select the data
-                // joins chat_handle_join to handle on ch.handle_id = h.ROWID
-                // joins chat_handle_join to chat_message_join via where clause (chj.chat_id = cmj.chat_id) grouped on chj.chat_id
-                // joins chat_message_join to message on cmj.message_id = m.ROWID
-                // joins message to handle on m.handle_id = h.ROWID
-                // h.ROWID <- chj.handle_id,chj.chat_id -> cmj.chat_id,cmj.message_id -> m.ROWID,m.handle_id -> h.ROWID
-                string sql = "SELECT DISTINCT (SELECT GROUP_CONCAT(h.id) FROM chat_handle_join ch INNER JOIN handle h on h.ROWID = ch.handle_id " +
-                    "WHERE ch.chat_id = cm.chat_id Group By ch.chat_id) as chatgroup, cm.chat_id FROM chat_message_join cm " +
-                    "INNER JOIN message m ON cm.message_id = m.ROWID INNER JOIN handle h ON m.handle_id = h.ROWID ORDER BY chatgroup;";
-                //sql = //"SELECT " + 
-                //        "SELECT Distinct GROUP_CONCAT(h.id) As chatgroup " +
-                //        "FROM chat_handle_join chj " +
-                //        "INNER JOIN handle h On h.ROWID = chj.handle_id " +
-                //        //"WHERE chj.chat_id = cmj.chat_id " + 
-                //        "Inner Join chat_message_join cmj On cmj.chat_id = chj.chat_id " +
-                //        "GROUP BY chj.chat_id " +
-                //    //"FROM chat_message_join cmj " +
-                //    //"INNER JOIN message m ON cmj.message_id = m.ROWID " +
-                //    //"INNER JOIN handle h ON m.handle_id = h.ROWID " + 
-                //    "ORDER BY chatgroup;";
+        //        // select the data
+        //        // joins chat_handle_join to handle on ch.handle_id = h.ROWID
+        //        // joins chat_handle_join to chat_message_join via where clause (chj.chat_id = cmj.chat_id) grouped on chj.chat_id
+        //        // joins chat_message_join to message on cmj.message_id = m.ROWID
+        //        // joins message to handle on m.handle_id = h.ROWID
+        //        // h.ROWID <- chj.handle_id,chj.chat_id -> cmj.chat_id,cmj.message_id -> m.ROWID,m.handle_id -> h.ROWID
+        //        string sql = "SELECT DISTINCT (SELECT GROUP_CONCAT(h.id) FROM chat_handle_join ch INNER JOIN handle h on h.ROWID = ch.handle_id " +
+        //            "WHERE ch.chat_id = cm.chat_id Group By ch.chat_id) as chatgroup, cm.chat_id FROM chat_message_join cm " +
+        //            "INNER JOIN message m ON cm.message_id = m.ROWID INNER JOIN handle h ON m.handle_id = h.ROWID ORDER BY chatgroup;";
+        //        //sql = //"SELECT " + 
+        //        //        "SELECT Distinct GROUP_CONCAT(h.id) As chatgroup " +
+        //        //        "FROM chat_handle_join chj " +
+        //        //        "INNER JOIN handle h On h.ROWID = chj.handle_id " +
+        //        //        //"WHERE chj.chat_id = cmj.chat_id " + 
+        //        //        "Inner Join chat_message_join cmj On cmj.chat_id = chj.chat_id " +
+        //        //        "GROUP BY chj.chat_id " +
+        //        //    //"FROM chat_message_join cmj " +
+        //        //    //"INNER JOIN message m ON cmj.message_id = m.ROWID " +
+        //        //    //"INNER JOIN handle h ON m.handle_id = h.ROWID " + 
+        //        //    "ORDER BY chatgroup;";
 
-                // these are all the groups, even those with no messages
-                // it's at least 3 times faster
-                //sql = "SELECT GROUP_CONCAT(h.id) as ChatGroup " +
-                //        "From chat_handle_join chj " +
-                //        "Inner Join handle h on h.ROWID = chj.handle_id " +
-                //        "Group By chj.chat_id " +
-                //        "Order By ChatGroup;";
+        //        // these are all the groups, even those with no messages
+        //        // it's at least 3 times faster
+        //        //sql = "SELECT GROUP_CONCAT(h.id) as ChatGroup " +
+        //        //        "From chat_handle_join chj " +
+        //        //        "Inner Join handle h on h.ROWID = chj.handle_id " +
+        //        //        "Group By chj.chat_id " +
+        //        //        "Order By ChatGroup;";
 
-                SQLiteCommand command = new SQLiteCommand(sql, m_dbConnection);
-                SQLiteDataReader row = command.ExecuteReader();
-                while (row.Read())
-                {
-                    if (row["chatgroup"].ToString().Trim() != "")
-                    {
-                        List<string> ids = (row["chatgroup"] as string).Split(",".ToCharArray()).ToList();
-                        //ids.Sort();
-                        // add and prettify US 11-digit phone numbers
-                        groups.Add(new iPhoneBackup.MessageGroup() { ChatId = (long)row["chat_id"], Ids = ids });
-                        //dt.Rows.Add(row["chatgroup"] as string, Regex.Replace(row["chatgroup"].ToString(), @"\+1(\d{3})(\d{3})(\d{4})\b", "($1)$2-$3"));
-                    }
-                }
-                row.Close();
-                m_dbConnection.Close();
-                TraceInformation("groups: {0} ms", sw.ElapsedMilliseconds);
-            }
-            return groups;
-        }
+        //        SQLiteCommand command = new SQLiteCommand(sql, m_dbConnection);
+        //        SQLiteDataReader row = command.ExecuteReader();
+        //        while (row.Read())
+        //        {
+        //            if (row["chatgroup"].ToString().Trim() != "")
+        //            {
+        //                List<string> ids = (row["chatgroup"] as string).Split(",".ToCharArray()).ToList();
+        //                //ids.Sort();
+        //                // add and prettify US 11-digit phone numbers
+        //                groups.Add(new iPhoneBackup.MessageGroup() { ChatId = (long)row["chat_id"], Ids = ids });
+        //                //dt.Rows.Add(row["chatgroup"] as string, Regex.Replace(row["chatgroup"].ToString(), @"\+1(\d{3})(\d{3})(\d{4})\b", "($1)$2-$3"));
+        //            }
+        //        }
+        //        row.Close();
+        //        m_dbConnection.Close();
+        //        TraceInformation("groups: {0} ms", sw.ElapsedMilliseconds);
+        //    }
+        //    return groups;
+        //}
 
         //string Reorder(string s)
         //{
@@ -149,7 +149,7 @@ namespace iPhoneMessageExport
             if (_backup == null)
                 return;
 
-            bool isGroupMessage = group.Ids.Count > 1;
+            //bool isGroupMessage = group.Ids.Count > 1;
             lbPreview.Items.Clear();
 
             Stopwatch sw = Stopwatch.StartNew();
@@ -177,16 +177,22 @@ namespace iPhoneMessageExport
             ids.ForEach((i) => { if (!_contacts.TryGetValue(i, out s)) names.Add(i); else names.Add(s); });
             return string.Join(", ", names);
         }
-
+        string IdToName(string id)
+        {
+            string s;
+            if (!_contacts.TryGetValue(id, out s))
+                return id;
+            return s;
+        }
 
         /// <summary>
         /// Export all messages for MessageGroup in backup file into HTML file. (THREAD)
         /// </summary>
-        private void exportHTMLForMessageGroup(iPhoneBackup.MessageGroup grp)
+        private void exportHTMLForMessageGroup(iPhoneBackup.MessageGroup group)
         {
             StringBuilder sb = new StringBuilder();
-            string group = string.Join(",", grp.Ids);
-            bool isGroupMessage = (group.Contains(",")) ? true : false;
+            //string group = string.Join(",", grp.Ids);
+            //bool isGroupMessage = group.Ids.Count > 1; // (group.Contains(",")) ? true : false;
 
             // query database
             if (dbFile != null)
@@ -197,51 +203,62 @@ namespace iPhoneMessageExport
                 m_dbConnection.Open();
 
                 int totalMessages = 1;
-                // get count of messages for progress bar
-                string sql = "SELECT count(*) as count, (SELECT GROUP_CONCAT(h.id) FROM chat_handle_join ch " +
-                    "INNER JOIN handle h on h.ROWID = ch.handle_id WHERE ch.chat_id = cm.chat_id GROUP BY ch.chat_id) as chatgroup " +
-                    "FROM chat_message_join cm INNER JOIN message m ON cm.message_id = m.ROWID INNER JOIN handle h ON m.handle_id = h.ROWID " +
-                    "WHERE chatgroup = \"" + group + "\" LIMIT 1";
-                SQLiteDataAdapter adpt = new SQLiteDataAdapter(sql, m_dbConnection);
-                DataSet set = new DataSet();
-                adpt.Fill(set);
-                totalMessages = int.Parse(set.Tables[0].Rows[0]["count"].ToString());
-
-                // select the data
-                sql = "SELECT cm.chat_id, (SELECT GROUP_CONCAT(h.id) FROM chat_handle_join ch INNER JOIN handle h on h.ROWID = ch.handle_id " +
-                    "WHERE ch.chat_id = cm.chat_id GROUP BY ch.chat_id) as chatgroup, datetime(m.date+978307200,\"unixepoch\",\"localtime\") as date, " +
-                    "m.service, CASE m.is_from_me WHEN 1 THEN \"SENT\" WHEN 0 THEN \"RCVD\" END as direction, h.id, " +
-                    "CASE m.type WHEN 1 THEN \"GROUP\" WHEN 0 THEN \"1 - ON - 1\" END as type, replace(m.text,cast(X'EFBFBC' as text),\"[MEDIA]\") as text, " +
-                    "(SELECT GROUP_CONCAT(\"MediaDomain-\"||substr(a.filename,3)) FROM message_attachment_join ma " +
-                    "JOIN attachment a ON ma.attachment_id = a.ROWID WHERE ma.message_id = m.ROWID GROUP BY ma.message_id) as filereflist " +
-                    "FROM chat_message_join cm INNER JOIN message m ON cm.message_id = m.ROWID INNER JOIN handle h ON m.handle_id = h.ROWID " +
-                    "WHERE chatgroup = \"" + group + "\" ORDER BY date";
-                set.Dispose();
-                adpt.SelectCommand.CommandText = sql;
-                set = new DataSet();
-                adpt.Fill(set);
                 Stopwatch sw = Stopwatch.StartNew();
+
+                //// get count of messages for progress bar
+                //string sql = "SELECT count(*) as count, (SELECT GROUP_CONCAT(h.id) FROM chat_handle_join ch " +
+                //    "INNER JOIN handle h on h.ROWID = ch.handle_id WHERE ch.chat_id = cm.chat_id GROUP BY ch.chat_id) as chatgroup " +
+                //    "FROM chat_message_join cm INNER JOIN message m ON cm.message_id = m.ROWID INNER JOIN handle h ON m.handle_id = h.ROWID " +
+                //    "WHERE chatgroup = \"" + group + "\" LIMIT 1";
+                //SQLiteDataAdapter adpt = new SQLiteDataAdapter(sql, m_dbConnection);
+                //DataSet set = new DataSet();
+                //adpt.Fill(set);
+                //totalMessages = int.Parse(set.Tables[0].Rows[0]["count"].ToString());
+
+                //// select the data
+                //sql = "SELECT cm.chat_id, (SELECT GROUP_CONCAT(h.id) FROM chat_handle_join ch INNER JOIN handle h on h.ROWID = ch.handle_id " +
+                //    "WHERE ch.chat_id = cm.chat_id GROUP BY ch.chat_id) as chatgroup, datetime(m.date+978307200,\"unixepoch\",\"localtime\") as date, " +
+                //    "m.service, CASE m.is_from_me WHEN 1 THEN \"SENT\" WHEN 0 THEN \"RCVD\" END as direction, h.id, " +
+                //    "CASE m.type WHEN 1 THEN \"GROUP\" WHEN 0 THEN \"1 - ON - 1\" END as type, replace(m.text,cast(X'EFBFBC' as text),\"[MEDIA]\") as text, " +
+                //    "(SELECT GROUP_CONCAT(\"MediaDomain-\"||substr(a.filename,3)) FROM message_attachment_join ma " +
+                //    "JOIN attachment a ON ma.attachment_id = a.ROWID WHERE ma.message_id = m.ROWID GROUP BY ma.message_id) as filereflist " +
+                //    "FROM chat_message_join cm INNER JOIN message m ON cm.message_id = m.ROWID INNER JOIN handle h ON m.handle_id = h.ROWID " +
+                //    "WHERE chatgroup = \"" + group + "\" ORDER BY date";
+                //set.Dispose();
+                //adpt.SelectCommand.CommandText = sql;
+                //set = new DataSet();
+                //adpt.Fill(set);
+                //DataRowCollection rows = set.Tables[0].Rows;
+                List<iPhoneBackup.Message> msgs = _backup.GetMessages(group.ChatId);
+                totalMessages = msgs.Count;
+                TraceInformation("get messages: {0} ms", sw.ElapsedMilliseconds);
+                sw.Restart();
                 sb.AppendLine(iPhoneSMS.Properties.Resources.HTMLHeaders); // add html headers
-                sb.AppendLine("<BODY>\n");
-                sb.AppendLine("<H1>Messages from " + grp.ToString() + "</H1>\n");
-                sb.AppendLine("<H2>as of " + dbFileDate + "</H2>\n");
-                sb.AppendLine("<DIV id=\"messages\">\n");
+                sb.AppendLine("<BODY>");
+                sb.AppendFormat("<H1>Messages from {0}</H1>\n", group.ToString());
+                sb.AppendFormat("<H2>as of {0}</H2>\n", dbFileDate);
+                sb.AppendLine("<DIV id=\"messages\">");
                 // fields: date, service, direction, id, text, filereflist
                 int i = 0;
                 string mFile;
-                foreach (DataRow row in set.Tables[0].Rows)
+                foreach (iPhoneBackup.Message row in msgs)
                 {
-                    string content = (string)row["text"];
-                    sb.AppendLine("<DIV class=\"message message-" + row["direction"] + "-" + row["service"] + "\">");
-                    sb.AppendLine("<DIV class=\"timestamp-placeholder\"></DIV><DIV class=\"timestamp\">" + row["date"] + "</DIV>");
-                    if (isGroupMessage && row["direction"].ToString() == "RCVD")
-                        sb.AppendLine("<DIV class=\"sender\">" + row["id"] + "</DIV>");
+                    string content = row.Text; // (string)row["text"];
+                    sb.AppendFormat("<DIV class=\"message message-{0}-{1}\">\n", row.Incoming ? "RCVD" : "SENT", row.Type); // row["direction"], row["service"]);
+                    sb.AppendFormat("<DIV class=\"timestamp-placeholder\"></DIV><DIV class=\"timestamp\">{0}</DIV>\n", row.Timestamp); // row["date"]);
+                    //Assert(isGroupMessage == row.IsGroup);
+                    if (row.IsGroupSender) // row["direction"].ToString() == "RCVD")
+                        sb.AppendFormat("<DIV class=\"sender\">{0}</DIV>\n", IdToName(row.Sender)); // row["id"]);
                     // replace image placeholders (ï¿¼) with image files 
-                    if (row["filereflist"].ToString().Length > 0)
+                    //if (row["filereflist"].ToString().Length > 0)
+                    if (row.Attachments != null && row.Attachments.Count > 0)
                     {
-                        List<string> mediaFileList = row["filereflist"].ToString().Split(',').ToList();
-                        foreach (string mediaFile in mediaFileList)
+                        //List<string> mediaFileList = row["filereflist"].ToString().Split(',').ToList();
+                        foreach (var mediaFile in row.Attachments)
                         {
+                            mFile = MiscUtil.getSHAHash(mediaFile);
+                            mFile = mFile.Substring(0, 2) + "\\" + mFile;
+                            mFile = Path.Combine(dbFileDir, mFile);
                             string replace = null;
                             // get extension of mediaFile
                             switch (mediaFile.Substring(mediaFile.LastIndexOf('.')).ToLower())
@@ -250,19 +267,12 @@ namespace iPhoneMessageExport
                                 case ".jpeg":
                                 case ".jpg":
                                 case ".png":
-                                    mFile = MiscUtil.getSHAHash(mediaFile);
-                                    mFile = mFile.Substring(0, 2) + "\\" + mFile;
-                                    replace = "<img src=\"" + Path.Combine(dbFileDir, mFile) + "\"><!-- " + mediaFile + " //-->";
+                                    replace = string.Format("<img src=\"{0}\"><!-- {1}//-->", mFile, mediaFile);
                                     break;
                                 case ".mov":
-                                    mFile = MiscUtil.getSHAHash(mediaFile);
-                                    mFile = mFile.Substring(0, 2) + "\\" + mFile;
-                                    replace = string.Format("<video controls='controls' width='300' name='video' src='{0}'></video>", Path.Combine(dbFileDir, mFile));
+                                    replace = string.Format("<video controls='controls' width='300' name='video' src='{0}'></video>", mFile);
                                     break;
                                 case ".vcf":
-                                    mFile = MiscUtil.getSHAHash(mediaFile);
-                                    mFile = mFile.Substring(0, 2) + "\\" + mFile;
-                                    mFile = Path.Combine(dbFileDir, mFile);
                                     string contents = File.ReadAllText(mFile);
                                     int j = contents.IndexOf("FN:");
                                     int k = contents.IndexOf("\r", j + 3);
@@ -270,9 +280,6 @@ namespace iPhoneMessageExport
                                     replace = "Contact: " + contents;
                                     break;
                                 case ".pluginpayloadattachment":
-                                    mFile = MiscUtil.getSHAHash(mediaFile);
-                                    mFile = mFile.Substring(0, 2) + "\\" + mFile;
-                                    mFile = Path.Combine(dbFileDir, mFile);
                                     replace = string.Format("<p>Link: {0}</p>", mFile);
                                     replace = content;
                                     break;
@@ -285,20 +292,19 @@ namespace iPhoneMessageExport
                             content = rgx.Replace(content, replace, 1);
                         }
                     }
-                    sb.AppendLine("<DIV class=\"content\">" + content + "</DIV>\n");
-                    sb.AppendLine("</DIV>\n");
+                    sb.AppendFormat("<DIV class=\"content\">{0}</DIV>\n", content);
+                    sb.AppendLine("</DIV>");
 
                     i++;
                     backgroundWorker1.ReportProgress(i * 100 / totalMessages);
                 }
-                sb.AppendLine("</DIV>\n");
-                sb.AppendLine("</BODY>\n");
-                sb.AppendLine("</HTML>\n");
+                sb.AppendLine("</DIV>");
+                sb.AppendLine("</BODY>");
+                sb.AppendLine("</HTML>");
 
                 TraceInformation("Creating html: {0} ms", sw.ElapsedMilliseconds);
-                //4895
-                set.Dispose();
-                adpt.Dispose();
+                //set.Dispose();
+                //adpt.Dispose();
                 m_dbConnection.Close();
             }
 
