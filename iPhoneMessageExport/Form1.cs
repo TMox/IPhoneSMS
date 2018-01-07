@@ -27,7 +27,7 @@ namespace iPhoneMessageExport
         string dbFileDate = null;
         string dbFileDir = null;
         //string messageGroup = null;
-        string htmlFile = null;
+        //string htmlFile = null;
         string backupPath = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData) + @"\Apple Computer\MobileSync\Backup";
         string formTitle = null;
 
@@ -295,12 +295,20 @@ namespace iPhoneMessageExport
             });
 
             // output html data
-            File.WriteAllText(htmlFile, htmlOutput);
-
+            string file = Path.GetTempFileName() + ".html";
+            File.WriteAllText(file, htmlOutput);
+            ShowBrowser(file);
             return;
 
         }
 
+        delegate void dlgString(string s);
+        void ShowBrowser(string file)
+        {
+            var foo = Process.Start(file);
+            foo.WaitForInputIdle();
+            File.Delete(file);
+        }
         // FORM LOGIC
 
         /// <summary>
@@ -432,18 +440,18 @@ namespace iPhoneMessageExport
 
         private void btnExport_Click(object sender, EventArgs e)
         {
-            // show dialog for where to save html file
-            SaveFileDialog htmlFileDialog = new SaveFileDialog();
-            htmlFileDialog.Filter = "HTML File|*.htm,*.html";
-            htmlFileDialog.Title = "Save an HTML File";
-            htmlFileDialog.ShowDialog();
+            //// show dialog for where to save html file
+            //SaveFileDialog htmlFileDialog = new SaveFileDialog();
+            //htmlFileDialog.Filter = "HTML File|*.htm,*.html";
+            //htmlFileDialog.Title = "Save an HTML File";
+            //htmlFileDialog.ShowDialog();
 
-            // If the file name is not an empty string open it for saving.
-            if (htmlFileDialog.FileName == "")
-            {
-                return;
-            }
-            htmlFile = htmlFileDialog.FileName;
+            //// If the file name is not an empty string open it for saving.
+            //if (htmlFileDialog.FileName == "")
+            //{
+            //    return;
+            //}
+            //htmlFile = htmlFileDialog.FileName;
 
             // disable interface while exporting
             comboBackups.Enabled = false;

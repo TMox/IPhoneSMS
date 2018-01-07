@@ -31,6 +31,7 @@
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
             this.comboBackups = new System.Windows.Forms.ComboBox();
             this.panel1 = new System.Windows.Forms.Panel();
+            this.lblGroupCount = new System.Windows.Forms.Label();
             this.lbPreview = new System.Windows.Forms.ListBox();
             this.lbMessageGroup = new System.Windows.Forms.ListBox();
             this.labelMessageGroup = new System.Windows.Forms.Label();
@@ -38,7 +39,6 @@
             this.btnLoad = new System.Windows.Forms.Button();
             this.btnExport = new System.Windows.Forms.Button();
             this.backgroundWorker1 = new System.ComponentModel.BackgroundWorker();
-            this.lblGroupCount = new System.Windows.Forms.Label();
             this.panel1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -70,6 +70,18 @@
             this.panel1.Name = "panel1";
             this.panel1.Size = new System.Drawing.Size(860, 442);
             this.panel1.TabIndex = 4;
+            // 
+            // lblGroupCount
+            // 
+            this.lblGroupCount.AutoSize = true;
+            this.lblGroupCount.Font = new System.Drawing.Font("Verdana", 6F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lblGroupCount.Location = new System.Drawing.Point(415, 84);
+            this.lblGroupCount.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            this.lblGroupCount.Name = "lblGroupCount";
+            this.lblGroupCount.Size = new System.Drawing.Size(12, 12);
+            this.lblGroupCount.TabIndex = 9;
+            this.lblGroupCount.Text = "0";
+            this.lblGroupCount.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             // 
             // lbPreview
             // 
@@ -147,18 +159,6 @@
             this.backgroundWorker1.DoWork += new System.ComponentModel.DoWorkEventHandler(this.backgroundWorker1_DoWork);
             this.backgroundWorker1.ProgressChanged += new System.ComponentModel.ProgressChangedEventHandler(this.backgroundWorker1_ProgressChanged);
             this.backgroundWorker1.RunWorkerCompleted += new System.ComponentModel.RunWorkerCompletedEventHandler(this.backgroundWorker1_RunWorkerCompleted);
-            // 
-            // lblGroupCount
-            // 
-            this.lblGroupCount.AutoSize = true;
-            this.lblGroupCount.Font = new System.Drawing.Font("Verdana", 6F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.lblGroupCount.Location = new System.Drawing.Point(415, 84);
-            this.lblGroupCount.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
-            this.lblGroupCount.Name = "lblGroupCount";
-            this.lblGroupCount.Size = new System.Drawing.Size(12, 12);
-            this.lblGroupCount.TabIndex = 9;
-            this.lblGroupCount.Text = "0";
-            this.lblGroupCount.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
             // 
             // Form1
             // 
