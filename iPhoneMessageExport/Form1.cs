@@ -19,6 +19,8 @@ namespace iPhoneMessageExport
         /* GLOBAL variables */
         //bool _formInitialized = false;
         iPhoneBackup _backup;
+        string _outputFolder = @"C:\Work\git\Tools\Output";
+        const string vString = "0.01.02";
         List<iPhoneBackup.MessageGroup> _chats;
         List<iPhoneBackup.Person> _people;
         Dictionary<string, string> _contacts;
@@ -153,7 +155,7 @@ namespace iPhoneMessageExport
             lbPreview.Items.Clear();
 
             Stopwatch sw = Stopwatch.StartNew();
-            List<iPhoneBackup.Message> messages = _backup.GetMessages(group.ChatId, group.ToString());
+            List<iPhoneBackup.Message> messages = _backup.GetMessages(group.ChatId);
             TraceInformation("messages: {0} ms", sw.ElapsedMilliseconds);
 
             lbPreview.Items.Add(string.Format("Group {0}: {1}", group.ChatId, group.ToString()));
@@ -182,6 +184,15 @@ namespace iPhoneMessageExport
             string s;
             if (!_contacts.TryGetValue(id, out s))
                 return id;
+            return s;
+        }
+        string IdToNameUnknown(string id)
+        {
+            if (id[0] != '+' && !char.IsNumber(id[0]))
+                return "(Unknown)";
+            string s;
+            if (!_contacts.TryGetValue(id, out s))
+                return "(Unknown)";
             return s;
         }
 
@@ -362,6 +373,10 @@ namespace iPhoneMessageExport
                 this.Close();
                 return; // the path does not exist
             }
+            if (!Directory.Exists(_outputFolder))
+            {
+                Directory.CreateDirectory(_outputFolder);
+            }
 
             // get backup files
             dtMessageFiles = getBackupFiles(dirBackup);
@@ -400,9 +415,9 @@ namespace iPhoneMessageExport
         private void GetChatGroups()
         {
             Stopwatch sw = Stopwatch.StartNew();
-            _people = _backup.GetAddressList();
+            _people = _backup.GetiPhoneContacts();
             _contacts = new Dictionary<string, string>();
-            _people.ForEach((p) => p.Contacts.ForEach((c) => _contacts[c.value] = p.FirstName));
+            _people.ForEach((p) => p.Contacts.ForEach((c) => _contacts[c.value] = p.FullName));
             TraceInformation("GetAddressList {0} ms", sw.ElapsedMilliseconds);
             //List<iPhoneBackup.Message> messages = _backup.GetAllMessages();
             sw.Restart();
@@ -411,7 +426,6 @@ namespace iPhoneMessageExport
             FillMessageGroupsListbox(_chats);
 
             TraceInformation("{1} chats: {0} ms", sw.ElapsedMilliseconds, _chats.Count);
-            //File.WriteAllText(@"C:\Work\git\Tools\IPhoneSMS\b.txt", string.Join("\r\n", from c in _chats select /*c.ChatId + ": " + */ c.ToString()));
         }
 
         void FillMessageGroupsListbox(List<iPhoneBackup.MessageGroup> groups)
@@ -434,22 +448,6 @@ namespace iPhoneMessageExport
             lblGroupCount.Text = groups.Count.ToString();
             lblGroupCount.Left = lbMessageGroup.Right - lblGroupCount.Width + 1;
         }
-
-        //private void OpenBackup()
-        //{
-        //    // get message groups from file
-        //    List<iPhoneBackup.MessageGroup> MessageGroups = getMessageGroupsFromFile(dbFile);
-        //    FillMessageGroupsListbox(MessageGroups);
-        //    //DataView dvMessageGroups = dtMessageGroups.DefaultView;
-        //    //lbMessageGroup.DataSource = new BindingSource(dvMessageGroups, null);
-        //    //lbMessageGroup.DisplayMember = "Display";
-        //    //lbMessageGroup.ValueMember = "Value";
-        //    //lblGroupCount.Text = dvMessageGroups.Count.ToString();
-        //    //lblGroupCount.Left = lbMessageGroup.Right - lblGroupCount.Width + 1;
-        //    //var foo = (from c in MessageGroups select c.ToString()).ToList();
-        //    //foo.Sort();
-        //    //File.WriteAllText(@"C:\Work\git\Tools\IPhoneSMS\a.txt", string.Join("\r\n", foo /*from g in MessageGroups select string.Join(",", g.Ids)*/ ));
-        //}
 
         /// <summary>
         /// Enable HTML export button
@@ -545,6 +543,70 @@ namespace iPhoneMessageExport
             lbPreview.Left = lbMessageGroup.Right + 2 * MARGIN;
             lbPreview.Size = new System.Drawing.Size(lbMessageGroup.Width, lbMessageGroup.Height);
             lblGroupCount.Left = lbMessageGroup.Right - lblGroupCount.Width + 1;
+        }
+
+
+        void BackupToXML()
+        {
+            string xmlHeader = @"<?xml version='1.0' encoding='UTF-8' standalone='yes'?>
+<!--File Created By TMox iPhoneSMS v{3} on {2}-->
+<?xml-stylesheet type=""text/xsl"" href=""sms.xsl""?>
+<smses count=""{1}"" backup_set=""{0}"" backup_date=""{4}"">
+";
+            string xmlTail = @"</smses>";
+            string sms = "<sms protocol=\"0\" address=\"{0}\" date=\"{1}\" type=\"{2}\" subject=\"{3}\" body={4} toa=\"null\" sc_toa=\"null\" service_center=\"null\" read=\"1\" status=\"-1\" locked=\"0\" date_sent=\"{7}\" readable_date=\"{5:MMM d, yyyy h:mm:ss tt}\" contact_name=\"{6}\" />\n"; //Dec 26, 2011 5:02:54 PM
+            //0:+12702024204, 1:1324947774000, 2:2, 3:null, 4:Good evening, 5:Dec 26, 2011 5:02:54 PM, 6:Joan Martin
+            StringBuilder sb = new StringBuilder();
+
+            List<iPhoneBackup.Message> msgs = _backup.GetMessages(-1);
+            sb.AppendFormat(xmlHeader, Guid.NewGuid(), msgs.Count, DateTime.Now, vString, MiscUtil.datetimeToTimestampMS(DateTime.Now));
+
+            foreach (var msg in msgs)
+            {
+                sb.AppendFormat(sms, msg.Sender, MiscUtil.datetimeToTimestampMS(msg.Timestamp), msg.Incoming ? 1 : 2, string.IsNullOrEmpty(msg.Subject) ? "null" : msg.Subject, Encode(MediaString(msg.Text, msg.Attachments)), msg.Timestamp.IsDaylightSavingTime() ? msg.Timestamp.AddHours(1) : msg.Timestamp, IdToNameUnknown(msg.Sender), MiscUtil.datetimeToTimestampMS(msg.Sent));
+            }
+
+            sb.AppendLine(xmlTail);
+            File.WriteAllText(Path.Combine(_outputFolder, string.Format("sms_iPhoneSMS.xml", DateTime.Now)), sb.ToString());
+            btnBackupXML.Enabled = true;
+        }
+
+        string Encode(string s)
+        {
+            if (string.IsNullOrEmpty(s))
+                return "\"\"";
+            s = Regex.Replace(s, @"\p{Cs}", "");
+            s = s.Replace("&", "&amp;").Replace("\n", "&#10;").Replace("\r", "&#13;").Replace("<", "&lt;").Replace(">", "&gt;");
+            if (s.Contains("\""))
+                return "'" + s.Replace("'", "&apos;") + "'";
+            return "\"" + s + "\"";
+        }
+        string MediaString(string s, List<string> files)
+        {
+            if (string.IsNullOrEmpty(s))
+                return s;
+            int i = 0;
+            int j;
+            while ((j = s.IndexOf("[MEDIA]")) != -1)
+            {
+                s = s.Substring(0, j) + string.Format("[Attachment: {0}]", files != null && i < files.Count ? file(files[i++]) : "null") + s.Substring(j + 7);
+            }
+            return s;
+        }
+        string file(string s)
+        {
+            if (string.IsNullOrEmpty(s))
+                return s;
+            int i = s.LastIndexOf("/");
+            if (i == -1)
+                return s;
+            return s.Substring(i + 1);
+        }
+        private void btnBackupXML_Click(object sender, EventArgs e)
+        {
+            btnBackupXML.Enabled = false;
+            BackupToXML();
+            btnBackupXML.Enabled = true;
         }
     }
 }

@@ -16,7 +16,23 @@ namespace iPhoneMessageExport
         {
             DateTime sTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-            return (int)(datetime - sTime).TotalSeconds;
+            return (int)(datetime.ToUniversalTime() - sTime).TotalSeconds;
+        }
+
+        /// <summary>
+        /// Converts date in DateTime format to Unix Timestamp.
+        /// </summary>
+        /// <param name="datetime"></param>
+        /// <returns></returns>
+        public static long datetimeToTimestampMS(DateTime datetime)
+        {
+            if (datetime == DateTime.MinValue)
+                return 0;
+            DateTime sTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            if (datetime.IsDaylightSavingTime())
+                datetime = datetime.AddHours(1);
+            datetime = datetime.ToUniversalTime();
+            return (long)(datetime - sTime).TotalMilliseconds;
         }
 
         /// <summary>
@@ -24,11 +40,23 @@ namespace iPhoneMessageExport
         /// </summary>
         /// <param name="timestamp"></param>
         /// <returns></returns>
-        public static DateTime timestampToDateTime(int timestamp)
+        public static DateTime timestampToDateTime(long timestamp)
         {
-            DateTime sTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            DateTime sTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).ToLocalTime();
+            return sTime.AddMilliseconds(timestamp);
+        }
+
+        /// <summary>
+        /// Converts date in Unix Timestamp format to DateTime.
+        /// </summary>
+        /// <param name="timestamp"></param>
+        /// <returns></returns>
+        public static DateTime timestampToDateTimeiPhone(long timestamp)
+        {
+            DateTime sTime = new DateTime(2001, 1, 1, 0, 0, 0, DateTimeKind.Utc).ToLocalTime();
             return sTime.AddSeconds(timestamp);
         }
+
 
         /// <summary>
         /// Converts byte array to hex string.  Used by getSHAHash().

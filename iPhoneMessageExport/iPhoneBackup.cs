@@ -1,4 +1,5 @@
-﻿using System;
+﻿using iPhoneMessageExport;
+using System;
 using System.Collections.Generic;
 using System.Data;
 using System.IO;
@@ -38,6 +39,14 @@ namespace iPhoneSMS
             {
                 return string.IsNullOrEmpty(FirstName) ? LastName : FirstName;
             }
+            public string FullName
+            {
+                get
+                {
+                    bool isn = string.IsNullOrEmpty(FirstName);
+                    return string.Format("{0}{1}{2}", isn ? "" : FirstName, isn ? "" : " ", LastName);
+                }
+            }
         }
 
         public class Message
@@ -52,6 +61,7 @@ namespace iPhoneSMS
             public bool IsGroupSender { get; set; }
             public string Type { get; set; }
             public DateTime Timestamp { get; set; }
+            public DateTime Sent { get; set; }
             public List<string> Attachments { get; set; }
             public override string ToString()
             {
@@ -117,7 +127,7 @@ namespace iPhoneSMS
         };
 
 
-        public List<Person> GetAddressList()
+        public List<Person> GetiPhoneContacts()
         {
             string file = _fileNames["Contacts"];
             string path = Path.Combine(DatabaseRoot, file.Substring(0, 2));
@@ -293,7 +303,7 @@ Order By date Desc;";
             return groups;
         }
 
-        public List<Message> GetMessages(long chatId, string group = null)
+        public List<Message> GetMessages(long chatId)
         {
             string file = _fileNames["SMS"];
             string path = Path.Combine(DatabaseRoot, file.Substring(0, 2));
@@ -315,33 +325,60 @@ Order By date Desc;";
             //DataRowCollection messages = backup.Query(sql).Rows;
             //return (from DataRow m in messages select new Message { Text = m["text"] as string, Type = m["service"] as string, Incoming = m["direction"].Equals("RCVD"), Timestamp = new DateTime(2001, 1, 1, 0, 0, 0, DateTimeKind.Utc).ToLocalTime().AddMilliseconds((long)m["date"] / 1000000) }).ToList();
 
-            string sql = string.Format(@"
-                    Select h.id as sender, m.subject as subject, cmj.chat_id, m.ROWID as id, m.service, m.is_from_me, 
-                        Case When m.date > 1000000000 
-                          Then m.date / 1000000000 
-                          Else m.date 
-                        End as date,
-                    replace(m.text,cast(X'EFBFBC' as text),'[MEDIA]') as text, m.type as type,
-                     (SELECT GROUP_CONCAT('MediaDomain-'||substr(a.filename,3)) FROM message_attachment_join maj
-                    JOIN attachment a ON maj.attachment_id = a.ROWID WHERE maj.message_id = m.ROWID GROUP BY maj.message_id) as filereflist
-                    From chat_message_join cmj
-                    Inner Join message m On m.ROWID = cmj.message_id
-                    Left Join handle h On h.ROWID = m.handle_id
-                    Where cmj.chat_id = {0} 
-                    Order By m.date;",
-                chatId);
+            string sql = _getMsgQuery + (chatId == -1 ? ";" : string.Format("Where cmj.chat_id={0};", chatId));
             DataRowCollection messages = backup.Query(sql).Rows;
-            return (from DataRow m in messages select new Message { Text = m["text"] as string, Type = m["service"] as string, Incoming = (long)m["is_from_me"] == 0, Timestamp = new DateTime(2001, 1, 1, 0, 0, 0, DateTimeKind.Utc).ToLocalTime().AddSeconds((long)m["date"]), Attachments = m["filereflist"] is DBNull ? null : (m["filereflist"] as string).Split(",".ToCharArray()).ToList(), Sender = m["sender"] as string, Subject = m["subject"] as string, IsGroupSender = ((long)m["type"] == 1) }).ToList();
+            List<Message> x = (from DataRow m in messages select new Message { Text = m["text"] as string, Type = m["service"] as string, Incoming = (long)m["is_from_me"] == 0, Timestamp = GetDT((long)m["date"]), Sent = GetDT((long)m["sent"]), Attachments = m["filereflist"] is DBNull ? null : (m["filereflist"] as string).Split(",".ToCharArray()).ToList(), Sender = m["sender"] as string, Subject = m["subject"] as string, IsGroupSender = ((long)m["type"] == 1) }).ToList();
+            x.Sort((a,b) => a.Timestamp.CompareTo(b.Timestamp));
+            return x;
         }
 
-        public List<Message> GetAllMessages()
+        string _getMsgQuery = @"Select h.id as sender, m.subject as subject, cmj.chat_id, m.ROWID as id, m.service, m.is_from_me, 
+m.date as date, m.date_delivered as sent,
+replace(m.text,cast(X'EFBFBC' as text),'[MEDIA]') as text, m.type as type,
+(SELECT GROUP_CONCAT('MediaDomain-'||substr(a.filename,3)) FROM message_attachment_join maj
+    JOIN attachment a ON maj.attachment_id = a.ROWID WHERE maj.message_id = m.ROWID GROUP BY maj.message_id) as filereflist
+From chat_message_join cmj
+Inner Join message m On m.ROWID = cmj.message_id
+Left Join handle h On h.ROWID = m.handle_id ";
+
+        //public List<Message> GetAllMessages()
+        //{
+        //    string file = _fileNames["SMS"];
+        //    string path = Path.Combine(DatabaseRoot, file.Substring(0, 2));
+        //    file = Path.Combine(path, file);
+        //    Sqlitedb backup = new Sqlitedb(file);
+        //    //Sqlitedb.Table messages = backup.GetTableData("message");
+        //    string sql = _getMsgQuery;
+
+        //    DataRowCollection messages = backup.Query(sql).Rows;
+        //    //{
+        //    //    foreach (DataRow item in messages)
+        //    //    {
+        //    //        DataRow row = item;
+        //    //        if ((row["text"] as string).StartsWith("Good evening"))
+        //    //        {
+        //    //            DateTime foo = MiscUtil.timestampToDateTimeiPhone((long)row["date"]);
+        //    //            long xx = 1324947774000;
+        //    //            DateTime bar = MiscUtil.timestampToDateTime(xx);
+        //    //            long blech = MiscUtil.datetimeToTimestampMS(foo);
+        //    //            WriteLine("stop");
+        //    //        }
+        //    //    }
+        //    //}
+        //    List<Message> x = (from DataRow m in messages select new Message { Text = m["text"] as string, Type = m["service"] as string, Incoming = (long)m["is_from_me"] == 0, Timestamp = GetDT((long)m["date"]), Attachments = m["filereflist"] is DBNull ? null : (m["filereflist"] as string).Split(",".ToCharArray()).ToList(), Sender = m["sender"] as string, Subject = m["subject"] as string, IsGroupSender = ((long)m["type"] == 1), Sent = GetDT((long)m["sent"]) }).ToList();
+        //    x.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
+        //    return x;
+        //}
+
+        DateTime GetDT(long val)
         {
-            string file = _fileNames["SMS"];
-            string path = Path.Combine(DatabaseRoot, file.Substring(0, 2));
-            file = Path.Combine(path, file);
-            Sqlitedb backup = new Sqlitedb(file);
-            Sqlitedb.Table messages = backup.GetTableData("message");
-            return (from m in messages.Items select new Message { Text = m["text"] as string, Subject = m["subject"] as string, Type = m["service"] as string, Incoming = ((long)m["is_from_me"] == 0), Timestamp = new DateTime(2001, 1, 1, 0, 0, 0, DateTimeKind.Utc).ToLocalTime().AddMilliseconds((long)m["date"] / 1000000) }).ToList();
+            //long ts = (long)row["date"];
+            if (val == 0)
+                return DateTime.MinValue;
+            if (val > 1000000000)
+                val /= 1000000000;
+            return MiscUtil.timestampToDateTimeiPhone(val);
         }
     }
+
 }

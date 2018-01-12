@@ -39,6 +39,7 @@
             this.btnLoad = new System.Windows.Forms.Button();
             this.btnExport = new System.Windows.Forms.Button();
             this.backgroundWorker1 = new System.ComponentModel.BackgroundWorker();
+            this.btnBackupXML = new System.Windows.Forms.Button();
             this.panel1.SuspendLayout();
             this.SuspendLayout();
             // 
@@ -56,6 +57,7 @@
             // 
             // panel1
             // 
+            this.panel1.Controls.Add(this.btnBackupXML);
             this.panel1.Controls.Add(this.lblGroupCount);
             this.panel1.Controls.Add(this.lbPreview);
             this.panel1.Controls.Add(this.lbMessageGroup);
@@ -147,7 +149,7 @@
             this.btnExport.Location = new System.Drawing.Point(16, 399);
             this.btnExport.Margin = new System.Windows.Forms.Padding(4);
             this.btnExport.Name = "btnExport";
-            this.btnExport.Size = new System.Drawing.Size(828, 28);
+            this.btnExport.Size = new System.Drawing.Size(411, 28);
             this.btnExport.TabIndex = 0;
             this.btnExport.Text = "Export Messages for Selected Message Group to HTML";
             this.btnExport.UseVisualStyleBackColor = true;
@@ -159,6 +161,19 @@
             this.backgroundWorker1.DoWork += new System.ComponentModel.DoWorkEventHandler(this.backgroundWorker1_DoWork);
             this.backgroundWorker1.ProgressChanged += new System.ComponentModel.ProgressChangedEventHandler(this.backgroundWorker1_ProgressChanged);
             this.backgroundWorker1.RunWorkerCompleted += new System.ComponentModel.RunWorkerCompletedEventHandler(this.backgroundWorker1_RunWorkerCompleted);
+            // 
+            // btnBackupXML
+            // 
+            this.btnBackupXML.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.btnBackupXML.Location = new System.Drawing.Point(435, 399);
+            this.btnBackupXML.Margin = new System.Windows.Forms.Padding(4);
+            this.btnBackupXML.Name = "btnBackupXML";
+            this.btnBackupXML.Size = new System.Drawing.Size(411, 28);
+            this.btnBackupXML.TabIndex = 10;
+            this.btnBackupXML.Text = "Backup All to XML";
+            this.btnBackupXML.UseVisualStyleBackColor = true;
+            this.btnBackupXML.Click += new System.EventHandler(this.btnBackupXML_Click);
             // 
             // Form1
             // 
@@ -190,6 +205,7 @@
         private System.ComponentModel.BackgroundWorker backgroundWorker1;
         private System.Windows.Forms.ListBox lbPreview;
         private System.Windows.Forms.Label lblGroupCount;
+        private System.Windows.Forms.Button btnBackupXML;
     }
 }
 
