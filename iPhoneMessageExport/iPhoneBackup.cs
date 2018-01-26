@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -49,20 +50,38 @@ namespace iPhoneSMS
             }
         }
 
+        public class Attachment
+        {
+            public Attachment(string s)
+            {
+                string[] t = s.Split(';');
+                FileName = t[0];
+                MimeType = t.Length > 1 ? t[1] : null;
+                Size = t.Length > 2 ? Convert.ToInt32(t[2]) : -1;
+            }
+            public string FileName { get; set; }
+            public string MimeType { get; set; }
+            public int Size { get; set; }
+            public override string ToString()
+            {
+                return MimeType;
+            }
+        }
         public class Message
         {
             // note about sender: if it the chat is one-on-one, this will always be the other person and IsGroupSender is always 0
             // if it's a group chat, this will be null if it's sent, or the id of the sender
             // IsGroupSender = 0 if it's me, it's 1 if it's incoming from a group participant
+            public long Id { get; set; }
             public string Sender { get; set; }
             public string Subject { get; set; }
             public string Text { get; set; }
             public bool Incoming { get; set; }
-            public bool IsGroupSender { get; set; }
             public string Type { get; set; }
             public DateTime Timestamp { get; set; }
             public DateTime Sent { get; set; }
-            public List<string> Attachments { get; set; }
+            public List<Attachment> Attachments { get; set; }
+            public int ChatId { get; set; }
             public override string ToString()
             {
                 return Timestamp.ToShortDateString();
@@ -326,21 +345,25 @@ Order By date Desc;";
             //return (from DataRow m in messages select new Message { Text = m["text"] as string, Type = m["service"] as string, Incoming = m["direction"].Equals("RCVD"), Timestamp = new DateTime(2001, 1, 1, 0, 0, 0, DateTimeKind.Utc).ToLocalTime().AddMilliseconds((long)m["date"] / 1000000) }).ToList();
 
             string sql = _getMsgQuery + (chatId == -1 ? ";" : string.Format("Where cmj.chat_id={0};", chatId));
+            Stopwatch sw = Stopwatch.StartNew();
             DataRowCollection messages = backup.Query(sql).Rows;
-            List<Message> x = (from DataRow m in messages select new Message { Text = m["text"] as string, Type = m["service"] as string, Incoming = (long)m["is_from_me"] == 0, Timestamp = GetDT((long)m["date"]), Sent = GetDT((long)m["sent"]), Attachments = m["filereflist"] is DBNull ? null : (m["filereflist"] as string).Split(",".ToCharArray()).ToList(), Sender = m["sender"] as string, Subject = m["subject"] as string, IsGroupSender = ((long)m["type"] == 1) }).ToList();
+            TraceInformation("Query {0} ms", sw.ElapsedMilliseconds);
+            List<Message> x = (from DataRow m in messages select new Message { Id = (long)m["id"], Text = m["text"] as string, Type = m["service"] as string, Incoming = (long)m["is_from_me"] == 0, Timestamp = GetDT((long)m["date"]), Sent = GetDT((long)m["sent"]), Attachments = m["filereflist"] is DBNull ? null : (from f in (m["filereflist"] as string).Split(',') select new Attachment(f)).ToList(), Sender = m["sender"] as string, Subject = m["subject"] as string, ChatId = (int)(long)m["chat"] }).ToList();
             x.Sort((a,b) => a.Timestamp.CompareTo(b.Timestamp));
             return x;
         }
 
-        string _getMsgQuery = @"Select h.id as sender, m.subject as subject, cmj.chat_id, m.ROWID as id, m.service, m.is_from_me, 
-m.date as date, m.date_delivered as sent,
-replace(m.text,cast(X'EFBFBC' as text),'[MEDIA]') as text, m.type as type,
-(SELECT GROUP_CONCAT('MediaDomain-'||substr(a.filename,3)) FROM message_attachment_join maj
+        // in a group message, type is 1 for from sender, 0 for from me
+        // in a group message, sender is null for type 0, sender for type 1
+        string _getMsgQuery = @"Select m.ROWID as id, cmj.chat_id, h.id as sender, m.subject as subject, m.service, m.is_from_me, 
+m.date as date, m.date_delivered as sent, cmj.chat_id as chat,
+--replace(m.text,cast(X'EFBFBC' as text),'[MEDIA]') as text,
+m.text as text,
+(SELECT GROUP_CONCAT(a.filename||';'||a.mime_type||';'||a.total_bytes) FROM message_attachment_join maj
     JOIN attachment a ON maj.attachment_id = a.ROWID WHERE maj.message_id = m.ROWID GROUP BY maj.message_id) as filereflist
 From chat_message_join cmj
 Inner Join message m On m.ROWID = cmj.message_id
 Left Join handle h On h.ROWID = m.handle_id ";
-
         //public List<Message> GetAllMessages()
         //{
         //    string file = _fileNames["SMS"];

@@ -11,6 +11,7 @@ using iPhoneSMS;
 using static System.Diagnostics.Trace;
 using System.Text;
 using System.Diagnostics;
+using SMSXml;
 
 namespace iPhoneMessageExport
 {
@@ -18,12 +19,11 @@ namespace iPhoneMessageExport
     {
         /* GLOBAL variables */
         //bool _formInitialized = false;
+        iPhone _iPhone;
         iPhoneBackup _backup;
         string _outputFolder = @"C:\Work\git\Tools\Output";
         const string vString = "0.01.02";
         List<iPhoneBackup.MessageGroup> _chats;
-        List<iPhoneBackup.Person> _people;
-        Dictionary<string, string> _contacts;
         DataTable dtMessageFiles;
         string dbFile = null;
         string dbFileDate = null;
@@ -172,30 +172,6 @@ namespace iPhoneMessageExport
             lbPreview.Items.AddRange(list.ToArray());
         }
 
-        string GroupNames(List<string> ids)
-        {
-            List < string > names = new List<string>(ids.Count);
-            string s;
-            ids.ForEach((i) => { if (!_contacts.TryGetValue(i, out s)) names.Add(i); else names.Add(s); });
-            return string.Join(", ", names);
-        }
-        string IdToName(string id)
-        {
-            string s;
-            if (!_contacts.TryGetValue(id, out s))
-                return id;
-            return s;
-        }
-        string IdToNameUnknown(string id)
-        {
-            if (id[0] != '+' && !char.IsNumber(id[0]))
-                return "(Unknown)";
-            string s;
-            if (!_contacts.TryGetValue(id, out s))
-                return "(Unknown)";
-            return s;
-        }
-
         /// <summary>
         /// Export all messages for MessageGroup in backup file into HTML file. (THREAD)
         /// </summary>
@@ -215,32 +191,9 @@ namespace iPhoneMessageExport
 
                 int totalMessages = 1;
                 Stopwatch sw = Stopwatch.StartNew();
-
-                //// get count of messages for progress bar
-                //string sql = "SELECT count(*) as count, (SELECT GROUP_CONCAT(h.id) FROM chat_handle_join ch " +
-                //    "INNER JOIN handle h on h.ROWID = ch.handle_id WHERE ch.chat_id = cm.chat_id GROUP BY ch.chat_id) as chatgroup " +
-                //    "FROM chat_message_join cm INNER JOIN message m ON cm.message_id = m.ROWID INNER JOIN handle h ON m.handle_id = h.ROWID " +
-                //    "WHERE chatgroup = \"" + group + "\" LIMIT 1";
-                //SQLiteDataAdapter adpt = new SQLiteDataAdapter(sql, m_dbConnection);
-                //DataSet set = new DataSet();
-                //adpt.Fill(set);
-                //totalMessages = int.Parse(set.Tables[0].Rows[0]["count"].ToString());
-
-                //// select the data
-                //sql = "SELECT cm.chat_id, (SELECT GROUP_CONCAT(h.id) FROM chat_handle_join ch INNER JOIN handle h on h.ROWID = ch.handle_id " +
-                //    "WHERE ch.chat_id = cm.chat_id GROUP BY ch.chat_id) as chatgroup, datetime(m.date+978307200,\"unixepoch\",\"localtime\") as date, " +
-                //    "m.service, CASE m.is_from_me WHEN 1 THEN \"SENT\" WHEN 0 THEN \"RCVD\" END as direction, h.id, " +
-                //    "CASE m.type WHEN 1 THEN \"GROUP\" WHEN 0 THEN \"1 - ON - 1\" END as type, replace(m.text,cast(X'EFBFBC' as text),\"[MEDIA]\") as text, " +
-                //    "(SELECT GROUP_CONCAT(\"MediaDomain-\"||substr(a.filename,3)) FROM message_attachment_join ma " +
-                //    "JOIN attachment a ON ma.attachment_id = a.ROWID WHERE ma.message_id = m.ROWID GROUP BY ma.message_id) as filereflist " +
-                //    "FROM chat_message_join cm INNER JOIN message m ON cm.message_id = m.ROWID INNER JOIN handle h ON m.handle_id = h.ROWID " +
-                //    "WHERE chatgroup = \"" + group + "\" ORDER BY date";
-                //set.Dispose();
-                //adpt.SelectCommand.CommandText = sql;
-                //set = new DataSet();
-                //adpt.Fill(set);
-                //DataRowCollection rows = set.Tables[0].Rows;
                 List<iPhoneBackup.Message> msgs = _backup.GetMessages(group.ChatId);
+                List<iPhoneBackup.MessageGroup> chats = _backup.GetChats();
+                iPhoneBackup.MessageGroup chat;
                 totalMessages = msgs.Count;
                 TraceInformation("get messages: {0} ms", sw.ElapsedMilliseconds);
                 sw.Restart();
@@ -258,8 +211,9 @@ namespace iPhoneMessageExport
                     sb.AppendFormat("<DIV class=\"message message-{0}-{1}\">\n", row.Incoming ? "RCVD" : "SENT", row.Type); // row["direction"], row["service"]);
                     sb.AppendFormat("<DIV class=\"timestamp-placeholder\"></DIV><DIV class=\"timestamp\">{0}</DIV>\n", row.Timestamp); // row["date"]);
                     //Assert(isGroupMessage == row.IsGroup);
-                    if (row.IsGroupSender) // row["direction"].ToString() == "RCVD")
-                        sb.AppendFormat("<DIV class=\"sender\">{0}</DIV>\n", IdToName(row.Sender)); // row["id"]);
+                    chat = chats.Find(q => q.ChatId == row.ChatId);
+                    if (chat.Ids.Count > 1) // it's a group chat
+                        sb.AppendFormat("<DIV class=\"sender\">{0}</DIV>\n", _iPhone.IdToName(row.Sender)); // row["id"]);
                     // replace image placeholders (ï¿¼) with image files 
                     //if (row["filereflist"].ToString().Length > 0)
                     if (row.Attachments != null && row.Attachments.Count > 0)
@@ -267,12 +221,17 @@ namespace iPhoneMessageExport
                         //List<string> mediaFileList = row["filereflist"].ToString().Split(',').ToList();
                         foreach (var mediaFile in row.Attachments)
                         {
-                            mFile = MiscUtil.getSHAHash(mediaFile);
+                            mFile = mediaFile.FileName;
+                            if (mFile.StartsWith("~"))
+                                mFile = "MediaDomain-" + mFile.Substring(2);
+                            else
+                                mFile = "MediaDomain-" + mFile.Substring(12);
+                            mFile = MiscUtil.getSHAHash(mFile);
                             mFile = mFile.Substring(0, 2) + "\\" + mFile;
                             mFile = Path.Combine(dbFileDir, mFile);
                             string replace = null;
                             // get extension of mediaFile
-                            switch (mediaFile.Substring(mediaFile.LastIndexOf('.')).ToLower())
+                            switch (mediaFile.FileName.Substring(mediaFile.FileName.LastIndexOf('.')).ToLower())
                             {
                                 // image 
                                 case ".jpeg":
@@ -395,7 +354,6 @@ namespace iPhoneMessageExport
             // disable export button until listbox is populated
             btnExport.Enabled = false;
 
-            iPhoneBackup.MessageGroup.ToStringFilter = GroupNames;
         }
 
 
@@ -415,9 +373,8 @@ namespace iPhoneMessageExport
         private void GetChatGroups()
         {
             Stopwatch sw = Stopwatch.StartNew();
-            _people = _backup.GetiPhoneContacts();
-            _contacts = new Dictionary<string, string>();
-            _people.ForEach((p) => p.Contacts.ForEach((c) => _contacts[c.value] = p.FullName));
+            _iPhone = new iPhone();
+            _iPhone.GetContacts(_backup);
             TraceInformation("GetAddressList {0} ms", sw.ElapsedMilliseconds);
             //List<iPhoneBackup.Message> messages = _backup.GetAllMessages();
             sw.Restart();
@@ -429,7 +386,7 @@ namespace iPhoneMessageExport
         }
 
         void FillMessageGroupsListbox(List<iPhoneBackup.MessageGroup> groups)
-        { 
+        {
             //DataTable dt = new DataTable();
             //dt.Columns.Add("Value", typeof(long));
             //dt.Columns.Add("Display", typeof(string));
@@ -528,10 +485,7 @@ namespace iPhoneMessageExport
                 _backup = new iPhoneBackup() { FileDate = dbFileDate, DatabaseFolder = Path.GetFileName(dbFileDir), BackupRoot = Path.GetDirectoryName(dbFileDir) };
 
                 GetChatGroups();
-                //OpenBackup();
-                //_formInitialized = true;
-                //// force the indexchanged to occur prior to this SelectedValue wasn't set correctly
-                //lbMessageGroup_SelectedIndexChanged(null, null);
+                iPhoneBackup.MessageGroup.ToStringFilter = _iPhone.GroupNames;
                 lbMessageGroup.Select();
             }
         }
@@ -548,27 +502,249 @@ namespace iPhoneMessageExport
 
         void BackupToXML()
         {
-            string xmlHeader = @"<?xml version='1.0' encoding='UTF-8' standalone='yes'?>
-<!--File Created By TMox iPhoneSMS v{3} on {2}-->
-<?xml-stylesheet type=""text/xsl"" href=""sms.xsl""?>
-<smses count=""{1}"" backup_set=""{0}"" backup_date=""{4}"">
-";
-            string xmlTail = @"</smses>";
-            string sms = "<sms protocol=\"0\" address=\"{0}\" date=\"{1}\" type=\"{2}\" subject=\"{3}\" body={4} toa=\"null\" sc_toa=\"null\" service_center=\"null\" read=\"1\" status=\"-1\" locked=\"0\" date_sent=\"{7}\" readable_date=\"{5:MMM d, yyyy h:mm:ss tt}\" contact_name=\"{6}\" />\n"; //Dec 26, 2011 5:02:54 PM
-            //0:+12702024204, 1:1324947774000, 2:2, 3:null, 4:Good evening, 5:Dec 26, 2011 5:02:54 PM, 6:Joan Martin
-            StringBuilder sb = new StringBuilder();
+            var foo = GetiPhoneBackupMessages();
 
-            List<iPhoneBackup.Message> msgs = _backup.GetMessages(-1);
-            sb.AppendFormat(xmlHeader, Guid.NewGuid(), msgs.Count, DateTime.Now, vString, MiscUtil.datetimeToTimestampMS(DateTime.Now));
+            //int count = 0;
+            //int good = 0;
+            //foreach (var item in foo.mms)
+            //{
+            //    if (item.Parts.Count == 1 && item.Parts[0].ct == "test/plain")
+            //        continue;
+            //    foreach (var p in item.Parts)
+            //    {
+            //        string f = MiscUtil.getSHAHash(p.cd);
+            //        f = f.Substring(0, 2) + "\\" + f;
+            //        f = Path.Combine(dbFileDir, f);
+            //        if (File.Exists(f))
+            //            good++;
+            //    }
+            //    count += item.Parts.Count;
+            //}
+            //WriteLine(string.Format("{0} attachments found, {1} good.", count, good));
 
-            foreach (var msg in msgs)
+            AndroidXml xml = new AndroidXml() { MMSMessages = foo.mms, SMSMessages = foo.sms };
+            xml.SortMMS();
+            xml.SortSMS();
+            string mFile;
+            string path = Path.Combine(_outputFolder, "Files");
+            string file;
+            if (!Directory.Exists(path))
+                Directory.CreateDirectory(path);
+            bool changedname = false;
+            foreach (AndroidMMS item in xml.WriteAndroidXMLFillingMMS(Path.Combine(_outputFolder, string.Format("sms_iPhoneSMS_{0:yyMMddhhmmss}.xml", DateTime.Now))))
             {
-                sb.AppendFormat(sms, msg.Sender, MiscUtil.datetimeToTimestampMS(msg.Timestamp), msg.Incoming ? 1 : 2, string.IsNullOrEmpty(msg.Subject) ? "null" : msg.Subject, Encode(MediaString(msg.Text, msg.Attachments)), msg.Timestamp.IsDaylightSavingTime() ? msg.Timestamp.AddHours(1) : msg.Timestamp, IdToNameUnknown(msg.Sender), MiscUtil.datetimeToTimestampMS(msg.Sent));
+                foreach(Part part in item.Parts)
+                {
+                    changedname = false;
+                    if (item.Parts.Count == 1 && item.Parts[0].ct == "text/plain" || string.IsNullOrEmpty(part.name))
+                        // this is a text-only mms group message
+                        continue;
+                    mFile = MiscUtil.getSHAHash(part.cd);
+                    mFile = mFile.Substring(0, 2) + "\\" + mFile;
+                    mFile = Path.Combine(dbFileDir, mFile);
+                    if (!File.Exists(mFile))
+                    {
+                        // almost all the missing files are vcards or vlocations; nothing to do about this--iPhone doesn't keep them apparently
+                        WriteLine("Couldn't find file " + mFile);
+                        part.cd = "null";
+                        continue;
+                    }
+                    file = Path.Combine(path, item.date.ToString("yyMMddhhmmss"));
+                    if (!Directory.Exists(file))
+                        Directory.CreateDirectory(file);
+                    file = Path.Combine(file, part.name);
+                    while (!File.Exists(file))
+                    {
+                        File.Copy(mFile, file);
+
+                        //changedname = true;
+                        //int i = file.LastIndexOf(".");
+                        //int j = i - 1;
+                        //while (j > 0 && file[j] != '(')
+                        //    j--;
+                        //if (j == 0)
+                        //    file = file.Substring(0, i) + "(2)" + file.Substring(i);
+                        //else
+                        //    file = file.Substring(0, j) + "(" + (int.Parse(file.Substring(j + 1, i - 2 - j)) + 1).ToString() + ")" + file.Substring(i);
+                    }
+                    //if (changedname)
+                    //    WriteLine(file);
+                    part.cd = "null";
+                    switch (part.ct) {
+                        case "audio/amr":
+                        case "video/3gpp":
+                        case "video/mp4":
+                        case "image/gif":
+                        case "image/jpeg":
+                        case "image/png":
+                        case "video/quicktime":
+                            //part.data = Convert.ToBase64String(File.ReadAllBytes(mFile));
+                            break;
+                        case "text/plain":
+                        case "text/vcard":
+                        case "text/x-vcard":
+                        case "text/x-vlocation":
+                            break;
+                    }
+                }
+            }
+            //xml.WriteAndroidXML(Path.Combine(_outputFolder, string.Format("sms_iPhoneSMS_{0}.xml", DateTime.Now)));
+        }
+
+
+        //        void WriteSMS()
+        //        string xmlHeader = @"<?xml version='1.0' encoding='UTF-8' standalone='yes'?>
+        //<!--File Created By TMox iPhoneSMS v{3} on {2}-->
+        //<?xml-stylesheet type=""text/xsl"" href=""sms.xsl""?>
+        //<smses count=""{1}"" backup_set=""{0}"" backup_date=""{4}"">
+        //";
+        //        string xmlTail = @"</smses>";
+        //        string sms = "<sms protocol=\"0\" address=\"{0}\" date=\"{1}\" type=\"{2}\" subject=\"{3}\" body={4} toa=\"null\" sc_toa=\"null\" service_center=\"null\" read=\"1\" status=\"-1\" locked=\"0\" date_sent=\"{7}\" readable_date=\"{5:MMM d, yyyy h:mm:ss tt}\" contact_name=\"{6}\" />\n";
+        //        StringBuilder sb = new StringBuilder();
+        //        AndroidXml xml = new AndroidXml() { AndroidMMSMessages = mmsMessages, AndroidSMSMessages = smsMessages };
+        //        xml.WriteAndroidXML(Path.Combine(_outputFolder, string.Format("sms_iPhoneSMS.xml", DateTime.Now)));
+
+        (List<AndroidSMS> sms, List<AndroidMMS> mms) GetiPhoneBackupMessages()
+        {
+            Stopwatch sw = Stopwatch.StartNew();
+            List<iPhoneBackup.Message> msgs = _backup.GetMessages(-1);
+            TraceInformation("Get all messages: {0} ms", sw.ElapsedMilliseconds);
+            sw.Restart();
+            // we need to put all the individual messages into chats
+            List<iPhoneBackup.MessageGroup> chats = _backup.GetChats();
+            TraceInformation("Get all chats: {0} ms", sw.ElapsedMilliseconds);
+
+            List<AndroidSMS> smsMessages = new List<AndroidSMS>();
+            List<AndroidMMS> mmsMessages = new List<AndroidMMS>();
+            iPhoneBackup.MessageGroup chat;
+            bool isGroup, hasAttachment;
+            //int count = 0;
+            foreach (var item in msgs)
+            {
+                chat = chats.Find(q => q.ChatId == item.ChatId);
+                isGroup = chat.Ids.Count > 1;
+                hasAttachment = item.Attachments != null && item.Attachments.Count > 0;
+                if (isGroup || hasAttachment)   
+                {
+                    AndroidMMS msg = new AndroidMMS()
+                    {
+                        address = chat.Ids,
+                        // have to set msg_box because that's the incoming/outgoing indicator (1/2)
+                        msg_box = item.Incoming ? 1 : 2,
+                        readable_date = string.Format("{0:MMM d, yyyy h:mm:ss tt}", item.Timestamp),
+                        contact_name = (from cid in chat.Ids select _iPhone.IdToName(cid)).ToList(),
+                        date = item.Timestamp,
+                        date_sent = (item.Sent == DateTime.MinValue) ? item.Sent : item.Sent,
+                    };
+                    mmsMessages.Add(msg);
+                    msg.Addresses = (from a in chat.Ids select new Address { address = a, type = 151 }).ToList();
+                    msg.Addresses[0].type = 137;
+                    msg.Parts = new List<Part>();
+                    int i = 0;
+                    if (item.Attachments == null || item.Attachments.Count == 0 || !string.IsNullOrEmpty(item.Text))
+                    {
+                        //Assert(isGroup);
+                        msg.Parts.Add(
+                            new Part
+                            {
+                                seq = 0,
+                                ct = "text/plain",
+                                name = null,
+                                chset = "106",
+                                fn = "part-0",
+                                cid = null,
+                                cl = null,
+                                text = item.Text,
+                            }
+                        );
+                        i++;
+                    }
+                    if (item.Attachments != null)
+                    { 
+                        foreach (var a in item.Attachments)
+                        {
+                            // these are all the mime types I get
+                            //if (a.MimeType != null && a.MimeType != "audio/amr" && a.MimeType != "video/3gpp" && a.MimeType != "video/mp4" && a.MimeType != "image/gif" && a.MimeType != "image/jpeg" && a.MimeType != "text/vcard" && a.MimeType != "video/quicktime" && a.MimeType != "text/x-vcard" && a.MimeType != "text/x-vlocation" && a.MimeType != "image/png")
+                            //    WriteLine("stop");
+                            msg.text_only = false; // text_only only shows up if there are two attachments: 1) a smil & 2) text. iPhone doesn't do smil files
+                            string fn = null;
+                            string path = null;
+                            try
+                            {
+                                path = a.FileName;
+                                if (path.StartsWith("~"))
+                                    path = "MediaDomain-" + path.Substring(2);
+                                else
+                                    path = "MediaDomain-" + path.Substring(12);
+                                fn = Path.GetFileName(path);
+                            }
+                            catch (Exception ex)
+                            {
+                                WriteLine("Error: " + ex.Message);
+                            }
+                            bool txt = isText(a.MimeType);
+                            msg.Parts.Add(
+                                new Part
+                                {
+                                    seq = i,
+                                    cd = path,
+                                    ct = a.MimeType,
+                                    name = fn,
+                                    chset = txt ? "106" : null,
+                                    fn = "part-" + i,
+                                    cid = string.Format("<{0}>", fn),
+                                    cl = fn,
+                                    text = txt ? item.Text : null,
+                                    //bugbug have to actually get the data file (no text files for iPhone)
+                                    data = txt ? null : "data"
+                                });
+                            i++;
+                        }
+                    }
+                }
+                else
+                {
+                    smsMessages.Add(new AndroidSMS()
+                    {
+                        address = item?.Sender ?? chat.Ids[0],
+                        body = item.Text,
+                        contact_name = _iPhone.IdToNameUnknown(item?.Sender ?? chat.Ids[0]),
+                        date = item.Timestamp,
+                        date_sent = (item.Sent == DateTime.MinValue) ? item.Sent : item.Sent,
+                        readable_date = string.Format("{0:MMM d, yyyy h:mm:ss tt}", item.Timestamp),
+                        subject = item.Subject,
+                        type = item.Incoming ? 1 : 2
+                    });
+                }
             }
 
-            sb.AppendLine(xmlTail);
-            File.WriteAllText(Path.Combine(_outputFolder, string.Format("sms_iPhoneSMS.xml", DateTime.Now)), sb.ToString());
+            TraceInformation("{0} SMS, {1} MMS", smsMessages.Count, mmsMessages.Count());
             btnBackupXML.Enabled = true;
+            return (smsMessages, mmsMessages);
+        }
+
+        bool isText(string mimetype)
+        {
+            switch (mimetype)
+            {
+                case "audio/amr":
+                case "video/3gpp":
+                case "video/mp4":
+                case "image/gif":
+                case "image/jpeg":
+                case "image/png":
+                case "video/quicktime":
+                    return false;
+                case "text/plain":
+                case "text/vcard":
+                case "text/x-vcard":
+                case "text/x-vlocation":
+                    return true;
+                default:
+                    WriteLine("stop");
+                    break;
+            }
+            return false;
         }
 
         string Encode(string s)

@@ -93,14 +93,19 @@
     <Reference Include="System.Deployment" />
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\..\SMSXml\SMSHtml\AndroidXml.cs">
+      <Link>AndroidXml.cs</Link>
+    </Compile>
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="Form1.Designer.cs">
       <DependentUpon>Form1.cs</DependentUpon>
     </Compile>
+    <Compile Include="iPhone.cs" />
     <Compile Include="iPhoneBackup.cs" />
     <Compile Include="sqlitedb.cs" />
     <Compile Include="MiscUtil.cs" />

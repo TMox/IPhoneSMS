@@ -14,9 +14,9 @@ namespace iPhoneMessageExport
         /// <returns></returns>
         public static int datetimeToTimestamp(DateTime datetime)
         {
-            DateTime sTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            DateTime sTime = new DateTime(1970, 1, 1, 0, 0, 0);
 
-            return (int)(datetime.ToUniversalTime() - sTime).TotalSeconds;
+            return (int)(datetime - sTime).TotalSeconds;
         }
 
         /// <summary>
@@ -28,10 +28,9 @@ namespace iPhoneMessageExport
         {
             if (datetime == DateTime.MinValue)
                 return 0;
-            DateTime sTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            DateTime sTime = new DateTime(1970, 1, 1, 0, 0, 0);
             if (datetime.IsDaylightSavingTime())
                 datetime = datetime.AddHours(1);
-            datetime = datetime.ToUniversalTime();
             return (long)(datetime - sTime).TotalMilliseconds;
         }
 
@@ -42,7 +41,7 @@ namespace iPhoneMessageExport
         /// <returns></returns>
         public static DateTime timestampToDateTime(long timestamp)
         {
-            DateTime sTime = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).ToLocalTime();
+            DateTime sTime = new DateTime(1970, 1, 1, 0, 0, 0);
             return sTime.AddMilliseconds(timestamp);
         }
 
@@ -53,7 +52,7 @@ namespace iPhoneMessageExport
         /// <returns></returns>
         public static DateTime timestampToDateTimeiPhone(long timestamp)
         {
-            DateTime sTime = new DateTime(2001, 1, 1, 0, 0, 0, DateTimeKind.Utc).ToLocalTime();
+            DateTime sTime = new DateTime(2001, 1, 1, 0, 0, 0);
             return sTime.AddSeconds(timestamp);
         }
 
